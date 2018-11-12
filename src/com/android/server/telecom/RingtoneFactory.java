@@ -91,8 +91,11 @@ public class RingtoneFactory {
 
             Uri defaultRingtoneUri;
             if (UserManager.get(contextToUse).isUserUnlocked(contextToUse.getUserId())) {
-                defaultRingtoneUri = RingtoneManager.getActualDefaultRingtoneUriBySlot(
-                        contextToUse, RingtoneManager.TYPE_RINGTONE, phoneId);
+                defaultRingtoneUri =
+                        RingtoneManager.getActualDefaultRingtoneUriForPhoneAccountHandle(
+                                contextToUse,
+                                RingtoneManager.TYPE_RINGTONE,
+                                incomingCall.getTargetPhoneAccount());
             } else {
                 defaultRingtoneUri = phoneId == 1 ? Settings.System.DEFAULT_RINGTONE2_URI
                         : Settings.System.DEFAULT_RINGTONE_URI;
