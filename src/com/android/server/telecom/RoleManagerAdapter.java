@@ -54,7 +54,7 @@ public interface RoleManagerAdapter {
     /**
      * Returns the package name of the app which fills the {@link android.app.role.RoleManager} call
      * screening role.
-     * @return the package name of the app filling the role, {@code null} otherwise}.
+     * @return the package name of the app filling the role, {@code null} otherwise.
      */
     String getDefaultCallScreeningApp(UserHandle userHandle);
 
@@ -67,9 +67,25 @@ public interface RoleManagerAdapter {
     void setTestDefaultCallScreeningApp(String packageName);
 
     /**
+     * Returns the package name of the package which fills the {@link android.app.role.RoleManager}
+     * bt in-call service role.
+     * @return the package name of the package filling the role, {@code null} otherwise.
+     */
+    String getBTInCallService();
+
+    /**
+     * Override the {@link android.app.role.RoleManager} bt in-call service package with another
+     * value.
+     * Used for testing purposes only.
+     * @param packageName Package name of the package to fill the bt in-call service role. Where
+     *                    {@code null}, the override is removed.
+     */
+    void setTestBTInCallService(String packageName);
+
+    /**
      * Returns the package name of the app which fills the {@link android.app.role.RoleManager}
      * {@link android.app.role.RoleManager#ROLE_DIALER} role.
-     * @return the package name of the app filling the role, {@code null} otherwise}.
+     * @return the package name of the app filling the role, {@code null} otherwise.
      */
     String getDefaultDialerApp(int user);
 

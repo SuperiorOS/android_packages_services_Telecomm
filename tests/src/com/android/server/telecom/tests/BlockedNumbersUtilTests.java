@@ -24,7 +24,8 @@ import static org.mockito.Mockito.verify;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.os.UserHandle;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.settings.BlockedNumbersUtil;
 

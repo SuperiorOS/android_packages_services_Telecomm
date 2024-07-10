@@ -24,7 +24,8 @@ import static org.junit.Assert.assertTrue;
 
 import android.telecom.Logging.Session;
 import android.telecom.Logging.SessionManager;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;

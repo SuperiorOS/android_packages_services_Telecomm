@@ -1,4 +1,5 @@
 package: "com.android.server.telecom.flags"
+container: "system"
 
 flag {
   name: "available_routes_never_updated_after_set_system_audio_state"
@@ -61,4 +62,11 @@ flag {
   namespace: "telecom"
   description: "Update supported route mask when Bluetooth devices audio connected."
   bug: "301695370"
+}
+
+flag {
+  name: "clear_communication_device_after_audio_ops_complete"
+  namespace: "telecom"
+  description: "Clear the requested communication device after the audio operations are completed."
+  bug: "315865533"
 }

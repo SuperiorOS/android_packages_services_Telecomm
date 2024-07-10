@@ -18,6 +18,21 @@ package com.android.server.telecom.tests;
 
 import static android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
@@ -29,7 +44,8 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Parcel;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.CallAudioCommunicationDeviceTracker;
 import com.android.server.telecom.bluetooth.BluetoothDeviceManager;
@@ -44,23 +60,8 @@ import org.junit.runners.JUnit4;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @RunWith(JUnit4.class)
@@ -402,7 +403,8 @@ public class BluetoothDeviceManagerTest extends TelecomTestCase {
         when(mAdapter.setActiveDevice(nullable(BluetoothDevice.class),
                     eq(BluetoothAdapter.ACTIVE_DEVICE_ALL))).thenReturn(true);
         mBluetoothDeviceManager.connectAudio(device1.getAddress(), false);
-        verify(mAdapter).setActiveDevice(device1, BluetoothAdapter.ACTIVE_DEVICE_PHONE_CALL);
+        verify(mAdapter).setActiveDevice(eq(device1),
+                eq(BluetoothAdapter.ACTIVE_DEVICE_PHONE_CALL));
         verify(mAdapter, never()).setActiveDevice(nullable(BluetoothDevice.class),
                 eq(BluetoothAdapter.ACTIVE_DEVICE_ALL));
         mBluetoothDeviceManager.disconnectAudio();

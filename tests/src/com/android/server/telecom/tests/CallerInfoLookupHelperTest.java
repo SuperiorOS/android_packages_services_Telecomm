@@ -17,11 +17,11 @@
 package com.android.server.telecom.tests;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -32,13 +32,13 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.telecom.Logging.Session;
-import android.test.suitebuilder.annotation.SmallTest;
-
-import androidx.test.InstrumentationRegistry;
-
 import android.telecom.CallerInfo;
 import android.telecom.CallerInfoAsyncQuery;
+import android.telecom.Logging.Session;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.SmallTest;
+
 import com.android.server.telecom.CallerInfoAsyncQueryFactory;
 import com.android.server.telecom.CallerInfoLookupHelper;
 import com.android.server.telecom.ContactsAsyncHelper;

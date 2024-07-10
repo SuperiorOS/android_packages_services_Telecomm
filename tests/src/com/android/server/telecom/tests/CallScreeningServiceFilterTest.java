@@ -43,7 +43,8 @@ import android.telecom.CallScreeningService;
 import android.telecom.ParcelableCall;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.internal.telecom.ICallScreeningAdapter;
 import com.android.internal.telecom.ICallScreeningService;

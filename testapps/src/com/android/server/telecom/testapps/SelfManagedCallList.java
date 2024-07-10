@@ -123,6 +123,7 @@ public class SelfManagedCallList {
 
     public void registerPhoneAccount(Context context, ComponentName componentName, String id,
             Uri address, String name, boolean areCallsLogged) {
+        TelecomManager telecomManager = context.getSystemService(TelecomManager.class);
         PhoneAccountHandle handle = new PhoneAccountHandle(componentName, id);
         mPhoneAccounts.put(id, handle);
         Bundle extras = new Bundle();
@@ -144,7 +145,7 @@ public class SelfManagedCallList {
                 .setExtras(extras)
                 .setShortDescription(name);
 
-        TelecomManager.from(context).registerPhoneAccount(builder.build());
+        telecomManager.registerPhoneAccount(builder.build());
     }
 
     public PhoneAccountHandle getPhoneAccountHandle(String id) {

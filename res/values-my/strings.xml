@@ -19,7 +19,7 @@
     <string name="telecommAppLabel" product="default" msgid="1825598513414129827">"ဖုန်းခေါ်ဆိုမှုများ"</string>
     <string name="userCallActivityLabel" product="default" msgid="3605391260292846248">"ဖုန်း"</string>
     <string name="unknown" msgid="6993977514360123431">"မသိပါ"</string>
-    <string name="notification_missedCallTitle" msgid="5060387047205532974">"လွဲသွားသော ဖုန်းခေါ်မှု"</string>
+    <string name="notification_missedCallTitle" msgid="5060387047205532974">"လွတ်သွားသော ခေါ်ဆိုမှု"</string>
     <string name="notification_missedWorkCallTitle" msgid="6965463282259034953">"လွတ်သွားသည့် အလုပ်ဆိုင်ရာ ခ​ေါ်ဆိုမှု"</string>
     <string name="notification_missedCallsTitle" msgid="3910479625507893809">"လွဲသွားသော ဖုန်းခေါ်မှုများ"</string>
     <string name="notification_missedCallsMsg" msgid="5055782736170916682">"<xliff:g id="NUM_MISSED_CALLS">%s</xliff:g> လွဲသွားသော ဖုန်းခေါ်မှုများ"</string>

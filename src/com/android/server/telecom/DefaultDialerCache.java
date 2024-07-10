@@ -142,9 +142,9 @@ public class DefaultDialerCache {
     private ComponentName mOverrideSystemDialerComponentName;
 
     public DefaultDialerCache(Context context,
-            DefaultDialerManagerAdapter defaultDialerManagerAdapter,
-            RoleManagerAdapter roleManagerAdapter,
-            TelecomSystem.SyncRoot lock) {
+                              DefaultDialerManagerAdapter defaultDialerManagerAdapter,
+                              RoleManagerAdapter roleManagerAdapter,
+                              TelecomSystem.SyncRoot lock) {
         mContext = context;
         mDefaultDialerManagerAdapter = defaultDialerManagerAdapter;
         mRoleManagerAdapter = roleManagerAdapter;
@@ -174,6 +174,10 @@ public class DefaultDialerCache {
         context.getContentResolver()
                 .registerContentObserver(defaultDialerSetting, false, mDefaultDialerObserver,
                         UserHandle.USER_ALL);
+    }
+
+    public String getBTInCallServicePackage() {
+        return mRoleManagerAdapter.getBTInCallService();
     }
 
     public String getDefaultDialerApplication(int userId) {

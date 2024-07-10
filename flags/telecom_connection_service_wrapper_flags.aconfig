@@ -1,4 +1,5 @@
 package: "com.android.server.telecom.flags"
+container: "system"
 
 flag {
   name: "updated_rcs_call_count_tracking"

@@ -16,6 +16,41 @@
 
 package com.android.server.telecom.tests;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+
+import android.app.AppOpsManager;
+import android.content.Context;
+import android.graphics.SurfaceTexture;
+import android.net.Uri;
+import android.os.Build;
+import android.os.UserHandle;
+import android.telecom.Connection;
+import android.telecom.Connection.VideoProvider;
+import android.telecom.InCallService;
+import android.telecom.InCallService.VideoCall;
+import android.telecom.VideoCallImpl;
+import android.telecom.VideoProfile;
+import android.telecom.VideoProfile.CameraCapabilities;
+import android.view.Surface;
+
+import androidx.test.filters.MediumTest;
+
+import com.android.server.telecom.CallsManager;
+
+import com.google.common.base.Predicate;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,47 +61,9 @@ import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import android.app.AppOpsManager;
-import android.content.Context;
-import android.graphics.SurfaceTexture;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.UserHandle;
-import android.telecom.Call;
-import android.telecom.Connection;
-import android.telecom.Connection.VideoProvider;
-import android.telecom.DisconnectCause;
-import android.telecom.InCallService;
-import android.telecom.InCallService.VideoCall;
-import android.telecom.VideoCallImpl;
-import android.telecom.VideoProfile;
-import android.telecom.VideoProfile.CameraCapabilities;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.view.Surface;
-
-import com.google.common.base.Predicate;
-
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-
-import com.android.server.telecom.CallsManager;
 
 /**
  * Performs tests of the {@link VideoProvider} and {@link VideoCall} APIs.  Ensures that requests

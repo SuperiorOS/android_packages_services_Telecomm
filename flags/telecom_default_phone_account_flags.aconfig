@@ -1,4 +1,5 @@
 package: "com.android.server.telecom.flags"
+container: "system"
 
 flag {
   name: "only_update_telephony_on_valid_sub_ids"

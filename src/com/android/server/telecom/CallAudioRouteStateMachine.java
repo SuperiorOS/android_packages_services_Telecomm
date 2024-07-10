@@ -120,63 +120,6 @@ public class CallAudioRouteStateMachine extends StateMachine implements CallAudi
     /** Direct the audio stream through another device. */
     public static final int ROUTE_STREAMING     = CallAudioState.ROUTE_STREAMING;
 
-    /** Valid values for msg.what */
-    public static final int CONNECT_WIRED_HEADSET = 1;
-    public static final int DISCONNECT_WIRED_HEADSET = 2;
-    public static final int CONNECT_DOCK = 5;
-    public static final int DISCONNECT_DOCK = 6;
-    public static final int BLUETOOTH_DEVICE_LIST_CHANGED = 7;
-    public static final int BT_ACTIVE_DEVICE_PRESENT = 8;
-    public static final int BT_ACTIVE_DEVICE_GONE = 9;
-
-    public static final int SWITCH_EARPIECE = 1001;
-    public static final int SWITCH_BLUETOOTH = 1002;
-    public static final int SWITCH_HEADSET = 1003;
-    public static final int SWITCH_SPEAKER = 1004;
-    // Wired headset, earpiece, or speakerphone, in that order of precedence.
-    public static final int SWITCH_BASELINE_ROUTE = 1005;
-
-    // Messages denoting that the speakerphone was turned on/off. Used to update state when we
-    // weren't the ones who turned it on/off
-    public static final int SPEAKER_ON = 1006;
-    public static final int SPEAKER_OFF = 1007;
-
-    // Messages denoting that the streaming route switch request was sent.
-    public static final int STREAMING_FORCE_ENABLED = 1008;
-    public static final int STREAMING_FORCE_DISABLED = 1009;
-
-    public static final int USER_SWITCH_EARPIECE = 1101;
-    public static final int USER_SWITCH_BLUETOOTH = 1102;
-    public static final int USER_SWITCH_HEADSET = 1103;
-    public static final int USER_SWITCH_SPEAKER = 1104;
-    public static final int USER_SWITCH_BASELINE_ROUTE = 1105;
-
-    public static final int UPDATE_SYSTEM_AUDIO_ROUTE = 1201;
-
-    // These three messages indicate state changes that come from BluetoothRouteManager.
-    // They may be triggered by the BT stack doing something on its own or they may be sent after
-    // we request that the BT stack do something. Any logic for these messages should take into
-    // account the possibility that the event indicated has already been processed (i.e. handling
-    // should be idempotent).
-    public static final int BT_AUDIO_DISCONNECTED = 1301;
-    public static final int BT_AUDIO_CONNECTED = 1302;
-    public static final int BT_AUDIO_PENDING = 1303;
-
-    public static final int MUTE_ON = 3001;
-    public static final int MUTE_OFF = 3002;
-    public static final int TOGGLE_MUTE = 3003;
-    public static final int MUTE_EXTERNALLY_CHANGED = 3004;
-
-    public static final int SWITCH_FOCUS = 4001;
-
-    // Used in testing to execute verifications. Not compatible with subsessions.
-    public static final int RUN_RUNNABLE = 9001;
-
-    /** Valid values for mAudioFocusType */
-    public static final int NO_FOCUS = 1;
-    public static final int ACTIVE_FOCUS = 2;
-    public static final int RINGING_FOCUS = 3;
-
     /** Valid values for the first argument for SWITCH_BASELINE_ROUTE */
     public static final int NO_INCLUDE_BLUETOOTH_IN_BASELINE = 0;
     public static final int INCLUDE_BLUETOOTH_IN_BASELINE = 1;
@@ -187,45 +130,6 @@ public class CallAudioRouteStateMachine extends StateMachine implements CallAudi
         put(CallAudioState.ROUTE_EARPIECE, LogUtils.Events.AUDIO_ROUTE_EARPIECE);
         put(CallAudioState.ROUTE_SPEAKER, LogUtils.Events.AUDIO_ROUTE_SPEAKER);
         put(CallAudioState.ROUTE_WIRED_HEADSET, LogUtils.Events.AUDIO_ROUTE_HEADSET);
-    }};
-
-    private static final SparseArray<String> MESSAGE_CODE_TO_NAME = new SparseArray<String>() {{
-        put(CONNECT_WIRED_HEADSET, "CONNECT_WIRED_HEADSET");
-        put(DISCONNECT_WIRED_HEADSET, "DISCONNECT_WIRED_HEADSET");
-        put(CONNECT_DOCK, "CONNECT_DOCK");
-        put(DISCONNECT_DOCK, "DISCONNECT_DOCK");
-        put(BLUETOOTH_DEVICE_LIST_CHANGED, "BLUETOOTH_DEVICE_LIST_CHANGED");
-        put(BT_ACTIVE_DEVICE_PRESENT, "BT_ACTIVE_DEVICE_PRESENT");
-        put(BT_ACTIVE_DEVICE_GONE, "BT_ACTIVE_DEVICE_GONE");
-
-        put(SWITCH_EARPIECE, "SWITCH_EARPIECE");
-        put(SWITCH_BLUETOOTH, "SWITCH_BLUETOOTH");
-        put(SWITCH_HEADSET, "SWITCH_HEADSET");
-        put(SWITCH_SPEAKER, "SWITCH_SPEAKER");
-        put(SWITCH_BASELINE_ROUTE, "SWITCH_BASELINE_ROUTE");
-        put(SPEAKER_ON, "SPEAKER_ON");
-        put(SPEAKER_OFF, "SPEAKER_OFF");
-
-        put(USER_SWITCH_EARPIECE, "USER_SWITCH_EARPIECE");
-        put(USER_SWITCH_BLUETOOTH, "USER_SWITCH_BLUETOOTH");
-        put(USER_SWITCH_HEADSET, "USER_SWITCH_HEADSET");
-        put(USER_SWITCH_SPEAKER, "USER_SWITCH_SPEAKER");
-        put(USER_SWITCH_BASELINE_ROUTE, "USER_SWITCH_BASELINE_ROUTE");
-
-        put(UPDATE_SYSTEM_AUDIO_ROUTE, "UPDATE_SYSTEM_AUDIO_ROUTE");
-
-        put(BT_AUDIO_DISCONNECTED, "BT_AUDIO_DISCONNECTED");
-        put(BT_AUDIO_CONNECTED, "BT_AUDIO_CONNECTED");
-        put(BT_AUDIO_PENDING, "BT_AUDIO_PENDING");
-
-        put(MUTE_ON, "MUTE_ON");
-        put(MUTE_OFF, "MUTE_OFF");
-        put(TOGGLE_MUTE, "TOGGLE_MUTE");
-        put(MUTE_EXTERNALLY_CHANGED, "MUTE_EXTERNALLY_CHANGED");
-
-        put(SWITCH_FOCUS, "SWITCH_FOCUS");
-
-        put(RUN_RUNNABLE, "RUN_RUNNABLE");
     }};
 
     private static final String ACTIVE_EARPIECE_ROUTE_NAME = "ActiveEarpieceRoute";
@@ -1737,11 +1641,11 @@ public class CallAudioRouteStateMachine extends StateMachine implements CallAudi
     }
 
     public void sendMessageWithSessionInfo(int message, int arg) {
-        sendMessageWithSessionInfo(message, arg, null);
+        sendMessageWithSessionInfo(message, arg, (String) null);
     }
 
     public void sendMessageWithSessionInfo(int message) {
-        sendMessageWithSessionInfo(message, 0, null);
+        sendMessageWithSessionInfo(message, 0, (String) null);
     }
 
     public void sendMessageWithSessionInfo(int message, int arg, String data) {
@@ -1749,6 +1653,10 @@ public class CallAudioRouteStateMachine extends StateMachine implements CallAudi
         args.arg1 = Log.createSubsession();
         args.arg2 = data;
         sendMessage(message, arg, 0, args);
+    }
+
+    public void sendMessageWithSessionInfo(int message, int arg, BluetoothDevice bluetoothDevice) {
+        // ignore, only used in CallAudioRouteController
     }
 
     @Override

@@ -17,7 +17,7 @@
 package com.android.server.telecom.tests;
 
 
-import static android.telephony.TelephonyManager.EmergencyCallDiagnosticParams;
+import static android.telephony.TelephonyManager.EmergencyCallDiagnosticData;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -238,16 +238,16 @@ public class EmergencyCallDiagnosticLoggerTest extends TelecomTestCase {
         mEmergencyCallDiagnosticLogger.reportStuckCall(call);
 
         //for stuck calls, we should always be persisting some data
-        ArgumentCaptor<EmergencyCallDiagnosticParams> captor =
-                ArgumentCaptor.forClass(EmergencyCallDiagnosticParams.class);
+        ArgumentCaptor<EmergencyCallDiagnosticData> captor =
+                ArgumentCaptor.forClass(EmergencyCallDiagnosticData.class);
         verify(mTm, times(1)).persistEmergencyCallDiagnosticData(eq(DROP_BOX_TAG),
                 captor.capture());
-        EmergencyCallDiagnosticParams dp = captor.getValue();
+        EmergencyCallDiagnosticData ecdData = captor.getValue();
 
-        assertNotNull(dp);
+        assertNotNull(ecdData);
         assertTrue(
-                dp.isLogcatCollectionEnabled() || dp.isTelecomDumpSysCollectionEnabled()
-                        || dp.isTelephonyDumpSysCollectionEnabled());
+                ecdData.isLogcatCollectionEnabled() || ecdData.isTelecomDumpsysCollectionEnabled()
+                        || ecdData.isTelephonyDumpsysCollectionEnabled());
 
         //tracking should end
         assertEquals(0, mEmergencyCallDiagnosticLogger.getEmergencyCallsMap().size());
@@ -265,17 +265,16 @@ public class EmergencyCallDiagnosticLoggerTest extends TelecomTestCase {
         mEmergencyCallDiagnosticLogger.onCallRemoved(call);
 
         //for non-local disconnect of non-active call,  we should always be persisting some data
-        ArgumentCaptor<TelephonyManager.EmergencyCallDiagnosticParams> captor =
-                ArgumentCaptor.forClass(
-                        TelephonyManager.EmergencyCallDiagnosticParams.class);
+        ArgumentCaptor<EmergencyCallDiagnosticData> captor =
+                ArgumentCaptor.forClass(EmergencyCallDiagnosticData.class);
         verify(mTm, times(1)).persistEmergencyCallDiagnosticData(eq(DROP_BOX_TAG),
                 captor.capture());
-        TelephonyManager.EmergencyCallDiagnosticParams dp = captor.getValue();
+        EmergencyCallDiagnosticData ecdData = captor.getValue();
 
-        assertNotNull(dp);
+        assertNotNull(ecdData);
         assertTrue(
-                dp.isLogcatCollectionEnabled() || dp.isTelecomDumpSysCollectionEnabled()
-                        || dp.isTelephonyDumpSysCollectionEnabled());
+                ecdData.isLogcatCollectionEnabled() || ecdData.isTelecomDumpsysCollectionEnabled()
+                        || ecdData.isTelephonyDumpsysCollectionEnabled());
 
         //tracking should end
         assertEquals(0, mEmergencyCallDiagnosticLogger.getEmergencyCallsMap().size());

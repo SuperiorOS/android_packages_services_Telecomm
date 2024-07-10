@@ -39,14 +39,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.UUID;
 
 public class CallControlTest extends TelecomTestCase {
-
-    private static final PhoneAccountHandle mHandle = new PhoneAccountHandle(
-            new ComponentName("foo", "bar"), "1");
-
-    @Mock
-    private ICallControl mICallControl;
-    @Mock
-    private ClientTransactionalServiceRepository mRepository;
+    @Mock private ICallControl mICallControl;
     private static final String CALL_ID_1 = UUID.randomUUID().toString();
 
     @Override
@@ -64,15 +57,7 @@ public class CallControlTest extends TelecomTestCase {
 
     @Test
     public void testGetCallId() {
-        CallControl control = new CallControl(CALL_ID_1, mICallControl, mRepository, mHandle);
+        CallControl control = new CallControl(CALL_ID_1, mICallControl);
         assertEquals(CALL_ID_1, control.getCallId().toString());
-    }
-
-    @Test
-    public void testCallControlHitsIllegalStateException() {
-        CallControl control = new CallControl(CALL_ID_1, null, mRepository, mHandle);
-        assertThrows(IllegalStateException.class, () ->
-                control.setInactive(Runnable::run, result -> {
-                }));
     }
 }

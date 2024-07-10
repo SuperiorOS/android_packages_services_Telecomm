@@ -56,6 +56,7 @@ public class VoipCallTransactionTest extends TelecomTestCase {
         public static final int SUCCESS = 0;
         public static final int FAILED = 1;
         public static final int TIMEOUT = 2;
+        public static final int EXCEPTION = 3;
 
         private long mSleepTime;
         private String mName;
@@ -70,6 +71,10 @@ public class VoipCallTransactionTest extends TelecomTestCase {
 
         @Override
         public CompletionStage<VoipCallTransactionResult> processTransaction(Void v) {
+            if (mType == EXCEPTION) {
+                mLog.append(mName).append(" exception;\n");
+                throw new IllegalStateException("TEST EXCEPTION");
+            }
             CompletableFuture<VoipCallTransactionResult> resultFuture = new CompletableFuture<>();
             mHandler.postDelayed(() -> {
                 if (mType == SUCCESS) {
@@ -246,8 +251,89 @@ public class VoipCallTransactionTest extends TelecomTestCase {
                     public void onError(CallException e) {
                         exceptionFuture.complete(e.getMessage());
                     }
-                };        mTransactionManager.addTransaction(t, outcomeReceiver);
+                };
+        mTransactionManager.addTransaction(t, outcomeReceiver);
         String message = exceptionFuture.get(7000L, TimeUnit.MILLISECONDS);
         assertTrue(message.contains("timeout"));
+    }
+
+    @SmallTest
+    @Test
+    public void testTransactionException()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        VoipCallTransaction t1 = new TestVoipCallTransaction("t1", 1000L,
+                TestVoipCallTransaction.EXCEPTION);
+        VoipCallTransaction t2 = new TestVoipCallTransaction("t2", 1000L,
+                TestVoipCallTransaction.SUCCESS);
+        CompletableFuture<String> exceptionFuture = new CompletableFuture<>();
+        OutcomeReceiver<VoipCallTransactionResult, CallException> outcomeExceptionReceiver =
+                new OutcomeReceiver<>() {
+                    @Override
+                    public void onResult(VoipCallTransactionResult result) {
+                    }
+
+                    @Override
+                    public void onError(CallException e) {
+                        exceptionFuture.complete(e.getMessage());
+                    }
+                };
+        mTransactionManager.addTransaction(t1, outcomeExceptionReceiver);
+        // Transaction will timeout because the Exception caused the transaction to stop processing.
+        exceptionFuture.get(7000L, TimeUnit.MILLISECONDS);
+        assertTrue(mLog.toString().contains("t1 exception;\n"));
+        // Verify an exception in a processing a previous transaction does not stall the next one.
+        CompletableFuture<VoipCallTransactionResult> resultFuture = new CompletableFuture<>();
+        OutcomeReceiver<VoipCallTransactionResult, CallException> outcomeReceiver =
+                resultFuture::complete;
+        mTransactionManager.addTransaction(t2, outcomeReceiver);
+        String expectedLog = "t1 exception;\nt2 success;\n";
+        assertEquals(VoipCallTransactionResult.RESULT_SUCCEED,
+                resultFuture.get(5000L, TimeUnit.MILLISECONDS).getResult());
+        assertEquals(expectedLog, mLog.toString());
+    }
+
+    @SmallTest
+    @Test
+    public void testTransactionResultException()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        VoipCallTransaction t1 = new TestVoipCallTransaction("t1", 1000L,
+                TestVoipCallTransaction.SUCCESS);
+        VoipCallTransaction t2 = new TestVoipCallTransaction("t2", 1000L,
+                TestVoipCallTransaction.SUCCESS);
+        VoipCallTransaction t3 = new TestVoipCallTransaction("t3", 1000L,
+                TestVoipCallTransaction.SUCCESS);
+        OutcomeReceiver<VoipCallTransactionResult, CallException> outcomeExceptionReceiver =
+                new OutcomeReceiver<>() {
+                    @Override
+                    public void onResult(VoipCallTransactionResult result) {
+                        throw new IllegalStateException("RESULT EXCEPTION");
+                    }
+
+                    @Override
+                    public void onError(CallException e) {
+                    }
+                };
+        mTransactionManager.addTransaction(t1, outcomeExceptionReceiver);
+        OutcomeReceiver<VoipCallTransactionResult, CallException> outcomeException2Receiver =
+                new OutcomeReceiver<>() {
+                    @Override
+                    public void onResult(VoipCallTransactionResult result) {
+                    }
+
+                    @Override
+                    public void onError(CallException e) {
+                        throw new IllegalStateException("RESULT EXCEPTION");
+                    }
+                };
+        mTransactionManager.addTransaction(t2, outcomeException2Receiver);
+        // Verify an exception in a previous transaction result does not stall the next one.
+        CompletableFuture<VoipCallTransactionResult> resultFuture = new CompletableFuture<>();
+        OutcomeReceiver<VoipCallTransactionResult, CallException> outcomeReceiver =
+                resultFuture::complete;
+        mTransactionManager.addTransaction(t3, outcomeReceiver);
+        String expectedLog = "t1 success;\nt2 success;\nt3 success;\n";
+        assertEquals(VoipCallTransactionResult.RESULT_SUCCEED,
+                resultFuture.get(5000L, TimeUnit.MILLISECONDS).getResult());
+        assertEquals(expectedLog, mLog.toString());
     }
 }

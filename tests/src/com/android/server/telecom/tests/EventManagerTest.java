@@ -16,11 +16,17 @@
 
 package com.android.server.telecom.tests;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import android.net.Uri;
 import android.os.Build;
 import android.telecom.Log;
 import android.telecom.Logging.EventManager;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;
@@ -31,11 +37,6 @@ import org.junit.runners.JUnit4;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for android.telecom.Logging.EventManager.

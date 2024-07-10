@@ -17,6 +17,7 @@
 package com.android.server.telecom.testapps;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.telecom.Log;
@@ -61,7 +62,7 @@ public class HandoverActivity extends Activity {
             if (connection != null) {
                 connection.setConnectionDisconnected(DisconnectCause.INCOMING_REJECTED);
                 connection.destroy();
-                TelecomManager tm = TelecomManager.from(this);
+                TelecomManager tm = this.getSystemService(TelecomManager.class);
                 tm.showInCallScreen(false);
             }
             finish();

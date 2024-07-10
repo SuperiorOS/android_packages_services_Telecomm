@@ -74,7 +74,7 @@ public class AppUninstallBroadcastReceiver extends BroadcastReceiver {
      * @param packageName The name of the removed package.
      */
     private void handlePackageRemoved(Context context, String packageName) {
-        final TelecomManager telecomManager = TelecomManager.from(context);
+        final TelecomManager telecomManager = context.getSystemService(TelecomManager.class);
         if (telecomManager != null) {
             telecomManager.clearAccountsForPackage(packageName);
         }

@@ -20,17 +20,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNotNull;
-import static org.mockito.Matchers.isNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,9 +50,9 @@ import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
 import android.telephony.DisconnectCause;
 import android.telephony.TelephonyManager;
-import android.test.suitebuilder.annotation.SmallTest;
 
-import com.android.server.telecom.flags.FeatureFlags;
+import androidx.test.filters.SmallTest;
+
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallsManager;
 import com.android.server.telecom.DefaultDialerCache;
@@ -65,6 +64,7 @@ import com.android.server.telecom.PhoneNumberUtilsAdapterImpl;
 import com.android.server.telecom.RoleManagerAdapter;
 import com.android.server.telecom.SystemStateHelper;
 import com.android.server.telecom.TelecomSystem;
+import com.android.server.telecom.flags.FeatureFlags;
 
 import org.junit.After;
 import org.junit.Before;

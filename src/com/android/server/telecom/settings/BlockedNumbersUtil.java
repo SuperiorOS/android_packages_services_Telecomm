@@ -23,7 +23,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.PersistableBundle;
 import android.os.UserHandle;
-import android.provider.BlockedNumberContract.SystemContract;
+import android.provider.BlockedNumberContract.BlockedNumbers;
 import android.telephony.CarrierConfigManager;
 import android.telephony.PhoneNumberUtils;
 import android.text.BidiFormatter;
@@ -148,8 +148,8 @@ public final class BlockedNumbersUtil {
      * @return If {@code true} means the key enabled in the SharedPreferences,
      *            {@code false} otherwise.
      */
-    public static boolean getEnhancedBlockSetting(Context context, String key) {
-        return SystemContract.getEnhancedBlockSetting(context, key);
+    public static boolean getBlockedNumberSetting(Context context, String key) {
+        return BlockedNumbers.getBlockedNumberSetting(context, key);
     }
 
     /**
@@ -159,7 +159,7 @@ public final class BlockedNumbersUtil {
      * @param key preference key of SharedPreferences.
      * @param value the register value to the SharedPreferences.
      */
-    public static void setEnhancedBlockSetting(Context context, String key, boolean value) {
-        SystemContract.setEnhancedBlockSetting(context, key, value);
+    public static void setBlockedNumberSetting(Context context, String key, boolean value) {
+        BlockedNumbers.setBlockedNumberSetting(context, key, value);
     }
 }

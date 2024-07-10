@@ -18,9 +18,9 @@ package com.android.server.telecom.tests;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,9 +36,8 @@ import android.bluetooth.BluetoothStatusCodes;
 import android.content.ContentResolver;
 import android.os.Parcel;
 import android.telecom.Log;
-import android.test.suitebuilder.annotation.SmallTest;
 
-import android.media.AudioDeviceInfo;
+import androidx.test.filters.SmallTest;
 
 import com.android.internal.os.SomeArgs;
 import com.android.server.telecom.CallAudioCommunicationDeviceTracker;

@@ -61,11 +61,11 @@ public class TransactionalServiceRepository {
         return service;
     }
 
-    public TransactionalServiceWrapper getTransactionalServiceWrapper(PhoneAccountHandle pah) {
+    private TransactionalServiceWrapper getTransactionalServiceWrapper(PhoneAccountHandle pah) {
         return mServiceLookupTable.get(pah);
     }
 
-    public boolean hasExistingServiceWrapper(PhoneAccountHandle pah) {
+    private boolean hasExistingServiceWrapper(PhoneAccountHandle pah) {
         return mServiceLookupTable.containsKey(pah);
     }
 

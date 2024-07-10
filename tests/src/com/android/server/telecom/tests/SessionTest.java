@@ -20,7 +20,8 @@ import static junit.framework.Assert.fail;
 
 import android.telecom.Log;
 import android.telecom.Logging.Session;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;

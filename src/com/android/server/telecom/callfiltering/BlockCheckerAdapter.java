@@ -34,22 +34,24 @@ public class BlockCheckerAdapter {
      *
      * @param context the context of the caller.
      * @param phoneNumber the number to check.
-     * @param extras the extra attribute of the number.
+     * @param numberPresentation the presentation code associated with the call.
+     * @param isNumberInContacts indicates if the provided number exists as a contact.
      * @return result code indicating if the number should be blocked, and if so why.
-     *         Valid values are: {@link BlockedNumberContract#STATUS_NOT_BLOCKED},
-     *         {@link BlockedNumberContract#STATUS_BLOCKED_IN_LIST},
-     *         {@link BlockedNumberContract#STATUS_BLOCKED_NOT_IN_CONTACTS},
-     *         {@link BlockedNumberContract#STATUS_BLOCKED_PAYPHONE},
-     *         {@link BlockedNumberContract#STATUS_BLOCKED_RESTRICTED},
-     *         {@link BlockedNumberContract#STATUS_BLOCKED_UNKNOWN_NUMBER}.
+     *         Valid values are: {@link BlockCheckerFilter#STATUS_NOT_BLOCKED},
+     *         {@link BlockCheckerFilter#STATUS_BLOCKED_IN_LIST},
+     *         {@link BlockCheckerFilter#STATUS_BLOCKED_NOT_IN_CONTACTS},
+     *         {@link BlockCheckerFilter#STATUS_BLOCKED_PAYPHONE},
+     *         {@link BlockCheckerFilter#STATUS_BLOCKED_RESTRICTED},
+     *         {@link BlockCheckerFilter#STATUS_BLOCKED_UNKNOWN_NUMBER}.
      */
-    public int getBlockStatus(Context context, String phoneNumber, Bundle extras) {
+    public int getBlockStatus(Context context, String phoneNumber,
+            int numberPresentation, boolean isNumberInContacts) {
         int blockStatus = BlockedNumberContract.STATUS_NOT_BLOCKED;
         long startTimeNano = System.nanoTime();
 
         try {
-            blockStatus = BlockedNumberContract.SystemContract.shouldSystemBlockNumber(
-                    context, phoneNumber, extras);
+            blockStatus = BlockedNumberContract.BlockedNumbers.shouldSystemBlockNumber(
+                    context, phoneNumber, numberPresentation, isNumberInContacts);
             if (blockStatus != BlockedNumberContract.STATUS_NOT_BLOCKED) {
                 Log.d(TAG, phoneNumber + " is blocked.");
             }

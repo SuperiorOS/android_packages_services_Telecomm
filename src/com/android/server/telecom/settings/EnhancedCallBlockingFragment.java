@@ -23,12 +23,11 @@ import android.preference.Preference;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceScreen;
 import android.preference.SwitchPreference;
-import android.provider.BlockedNumberContract.SystemContract;
+import android.provider.BlockedNumberContract.BlockedNumbers;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telecom.Log;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -54,13 +53,14 @@ public class EnhancedCallBlockingFragment extends PreferenceFragment
 
         maybeConfigureCallBlockingOptions();
 
-        setOnPreferenceChangeListener(SystemContract.ENHANCED_SETTING_KEY_BLOCK_UNREGISTERED);
-        setOnPreferenceChangeListener(SystemContract.ENHANCED_SETTING_KEY_BLOCK_PRIVATE);
-        setOnPreferenceChangeListener(SystemContract.ENHANCED_SETTING_KEY_BLOCK_PAYPHONE);
-        setOnPreferenceChangeListener(SystemContract.ENHANCED_SETTING_KEY_BLOCK_UNKNOWN);
-        setOnPreferenceChangeListener(SystemContract.ENHANCED_SETTING_KEY_BLOCK_UNAVAILABLE);
+        setOnPreferenceChangeListener(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_UNREGISTERED);
+        setOnPreferenceChangeListener(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_PRIVATE);
+        setOnPreferenceChangeListener(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_PAYPHONE);
+        setOnPreferenceChangeListener(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_UNKNOWN);
+        setOnPreferenceChangeListener(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_UNAVAILABLE);
         if (!showPayPhoneBlocking()) {
-            Preference payPhoneOption = getPreferenceScreen().findPreference(SystemContract.ENHANCED_SETTING_KEY_BLOCK_PAYPHONE);
+            Preference payPhoneOption = getPreferenceScreen()
+                    .findPreference(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_PAYPHONE);
             getPreferenceScreen().removePreference(payPhoneOption);
         }
     }
@@ -122,13 +122,13 @@ public class EnhancedCallBlockingFragment extends PreferenceFragment
     public void onResume() {
         super.onResume();
 
-        updateEnhancedBlockPref(SystemContract.ENHANCED_SETTING_KEY_BLOCK_UNREGISTERED);
-        updateEnhancedBlockPref(SystemContract.ENHANCED_SETTING_KEY_BLOCK_PRIVATE);
+        updateEnhancedBlockPref(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_UNREGISTERED);
+        updateEnhancedBlockPref(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_PRIVATE);
         if (showPayPhoneBlocking()) {
-            updateEnhancedBlockPref(SystemContract.ENHANCED_SETTING_KEY_BLOCK_PAYPHONE);
+            updateEnhancedBlockPref(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_PAYPHONE);
         }
-        updateEnhancedBlockPref(SystemContract.ENHANCED_SETTING_KEY_BLOCK_UNKNOWN);
-        updateEnhancedBlockPref(SystemContract.ENHANCED_SETTING_KEY_BLOCK_UNAVAILABLE);
+        updateEnhancedBlockPref(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_UNKNOWN);
+        updateEnhancedBlockPref(BlockedNumbers.ENHANCED_SETTING_KEY_BLOCK_UNAVAILABLE);
     }
 
     /**
@@ -137,7 +137,7 @@ public class EnhancedCallBlockingFragment extends PreferenceFragment
     private void updateEnhancedBlockPref(String key) {
         SwitchPreference pref = (SwitchPreference) findPreference(key);
         if (pref != null) {
-            pref.setChecked(BlockedNumbersUtil.getEnhancedBlockSetting(getActivity(), key));
+            pref.setChecked(BlockedNumbersUtil.getBlockedNumberSetting(getActivity(), key));
         }
     }
 
@@ -147,18 +147,18 @@ public class EnhancedCallBlockingFragment extends PreferenceFragment
             if (mIsCombiningRestrictedAndUnknownOption) {
                 Log.i(this, "onPreferenceChange: changing %s and %s to %b",
                         preference.getKey(), BLOCK_RESTRICTED_NUMBERS_KEY, (boolean) objValue);
-                BlockedNumbersUtil.setEnhancedBlockSetting(getActivity(),
+                BlockedNumbersUtil.setBlockedNumberSetting(getActivity(),
                         BLOCK_RESTRICTED_NUMBERS_KEY, (boolean) objValue);
             }
 
             if (mIsCombiningUnavailableAndUnknownOption) {
                 Log.i(this, "onPreferenceChange: changing %s and %s to %b",
                         preference.getKey(), BLOCK_UNAVAILABLE_NUMBERS_KEY, (boolean) objValue);
-                BlockedNumbersUtil.setEnhancedBlockSetting(getActivity(),
+                BlockedNumbersUtil.setBlockedNumberSetting(getActivity(),
                         BLOCK_UNAVAILABLE_NUMBERS_KEY, (boolean) objValue);
             }
         }
-        BlockedNumbersUtil.setEnhancedBlockSetting(getActivity(), preference.getKey(),
+        BlockedNumbersUtil.setBlockedNumberSetting(getActivity(), preference.getKey(),
                 (boolean) objValue);
         return true;
     }

@@ -18,7 +18,7 @@ package com.android.server.telecom.tests;
 
 import static org.junit.Assert.assertTrue;
 
-import android.test.suitebuilder.annotation.SmallTest;
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.LogUtils;
 

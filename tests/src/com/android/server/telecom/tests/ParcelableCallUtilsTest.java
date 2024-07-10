@@ -18,7 +18,8 @@ import android.telecom.Connection;
 import android.telecom.ParcelableCall;
 import android.telecom.PhoneAccountHandle;
 import android.telephony.ims.ImsCallProfile;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallerInfoLookupHelper;

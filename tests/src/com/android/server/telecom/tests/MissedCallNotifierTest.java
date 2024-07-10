@@ -16,23 +16,23 @@
 
 package com.android.server.telecom.tests;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
 import android.content.ComponentName;
 import android.net.Uri;
-import android.telecom.PhoneAccountHandle;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.telecom.CallerInfo;
+import android.telecom.PhoneAccountHandle;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.MissedCallNotifier;
-import com.android.server.telecom.MissedCallNotifier.CallInfo;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 
 @RunWith(JUnit4.class)
 public class MissedCallNotifierTest extends TelecomTestCase {

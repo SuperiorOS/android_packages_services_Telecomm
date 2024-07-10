@@ -17,8 +17,10 @@
 package com.android.server.telecom.tests;
 
 import static android.provider.CallLog.Calls.USER_MISSED_NOT_RUNNING;
+
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.TestCase.fail;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -41,6 +44,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
 import static java.lang.Thread.sleep;
 
 import android.Manifest;
@@ -53,7 +57,6 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
 import android.os.OutcomeReceiver;
 import android.os.Process;
@@ -61,7 +64,6 @@ import android.os.ResultReceiver;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.platform.test.flag.junit.SetFlagsRule;
 import android.provider.BlockedNumberContract;
 import android.telecom.CallException;
 import android.telecom.CallScreeningService;
@@ -76,12 +78,13 @@ import android.telecom.VideoProfile;
 import android.telephony.CarrierConfigManager;
 import android.telephony.PhoneCapability;
 import android.telephony.TelephonyManager;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.util.ArraySet;
 import android.util.Pair;
 import android.widget.Toast;
 
-import com.android.internal.telecom.IConnectionService;
+import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
+
 import com.android.server.telecom.AnomalyReporterAdapter;
 import com.android.server.telecom.AsyncRingtonePlayer;
 import com.android.server.telecom.Call;
@@ -100,7 +103,6 @@ import com.android.server.telecom.ClockProxy;
 import com.android.server.telecom.ConnectionServiceFocusManager;
 import com.android.server.telecom.ConnectionServiceFocusManager.ConnectionServiceFocusManagerFactory;
 import com.android.server.telecom.ConnectionServiceWrapper;
-import com.android.server.telecom.CreateConnectionResponse;
 import com.android.server.telecom.DefaultDialerCache;
 import com.android.server.telecom.EmergencyCallDiagnosticLogger;
 import com.android.server.telecom.EmergencyCallHelper;
@@ -123,27 +125,29 @@ import com.android.server.telecom.SystemStateHelper;
 import com.android.server.telecom.TelecomSystem;
 import com.android.server.telecom.Timeouts;
 import com.android.server.telecom.WiredHeadsetManager;
+import com.android.server.telecom.bluetooth.BluetoothDeviceManager;
 import com.android.server.telecom.bluetooth.BluetoothRouteManager;
 import com.android.server.telecom.bluetooth.BluetoothStateReceiver;
 import com.android.server.telecom.callfiltering.BlockedNumbersAdapter;
 import com.android.server.telecom.callfiltering.CallFilteringResult;
-import com.android.server.telecom.callfiltering.IncomingCallFilterGraph;
 import com.android.server.telecom.flags.FeatureFlags;
-import com.android.server.telecom.flags.Flags;
+import com.android.server.telecom.callfiltering.IncomingCallFilterGraph;
 import com.android.server.telecom.ui.AudioProcessingNotification;
 import com.android.server.telecom.ui.CallStreamingNotification;
 import com.android.server.telecom.ui.DisconnectedCallNotifier;
 import com.android.server.telecom.ui.ToastFactory;
 import com.android.server.telecom.voip.TransactionManager;
 
+import com.google.common.base.Objects;
+
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -153,10 +157,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @RunWith(JUnit4.class)
 public class CallsManagerTest extends TelecomTestCase {
@@ -172,6 +178,10 @@ public class CallsManagerTest extends TelecomTestCase {
             new UserHandle(SECONDARY_USER_ID));
     private static final PhoneAccountHandle SIM_2_HANDLE = new PhoneAccountHandle(
             ComponentName.unflattenFromString("com.foo/.Blah"), "Sim2");
+    private static final PhoneAccountHandle SIM_3_HANDLE = new PhoneAccountHandle(
+            ComponentName.unflattenFromString("com.foo/.Blah"), "Sim3");
+    private static final PhoneAccountHandle CALL_PROVIDER_HANDLE = new PhoneAccountHandle(
+            ComponentName.unflattenFromString("com.sip.foo/.Blah"), "sip1");
     private static final PhoneAccountHandle CONNECTION_MGR_1_HANDLE = new PhoneAccountHandle(
             ComponentName.unflattenFromString("com.bar/.Conn"), "Cm1");
     private static final PhoneAccountHandle CONNECTION_MGR_2_HANDLE = new PhoneAccountHandle(
@@ -202,6 +212,18 @@ public class CallsManagerTest extends TelecomTestCase {
     private static final PhoneAccount SIM_2_ACCOUNT = new PhoneAccount.Builder(SIM_2_HANDLE, "Sim2")
             .setCapabilities(PhoneAccount.CAPABILITY_SIM_SUBSCRIPTION
                     | PhoneAccount.CAPABILITY_CALL_PROVIDER
+                    | PhoneAccount.CAPABILITY_SUPPORTS_VIDEO_CALLING)
+            .setIsEnabled(true)
+            .build();
+    private static final PhoneAccount SIM_3_ACCOUNT = new PhoneAccount.Builder(SIM_3_HANDLE, "Sim3")
+            .setCapabilities(PhoneAccount.CAPABILITY_SIM_SUBSCRIPTION
+                    | PhoneAccount.CAPABILITY_CALL_PROVIDER
+                    | PhoneAccount.CAPABILITY_SUPPORTS_VIDEO_CALLING)
+            .setIsEnabled(true)
+            .build();
+    private static final PhoneAccount CALL_PROVIDER_ACCOUNT =
+            new PhoneAccount.Builder(CALL_PROVIDER_HANDLE, "sip1")
+            .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER
                     | PhoneAccount.CAPABILITY_SUPPORTS_VIDEO_CALLING)
             .setIsEnabled(true)
             .build();
@@ -286,11 +308,10 @@ public class CallsManagerTest extends TelecomTestCase {
     @Mock private PhoneCapability mPhoneCapability;
     @Mock private CallAudioCommunicationDeviceTracker mCommunicationDeviceTracker;
     @Mock private CallStreamingNotification mCallStreamingNotification;
+    @Mock private BluetoothDeviceManager mBluetoothDeviceManager;
     @Mock private FeatureFlags mFeatureFlags;
-
+    @Mock private com.android.internal.telephony.flags.FeatureFlags mTelephonyFlags;
     @Mock private IncomingCallFilterGraph mIncomingCallFilterGraph;
-    @Mock private IConnectionService mIConnectionService;
-    @Rule public SetFlagsRule mSetRlagsRule = new SetFlagsRule();
     private CallsManager mCallsManager;
 
     @Override
@@ -365,7 +386,9 @@ public class CallsManagerTest extends TelecomTestCase {
                 mEmergencyCallDiagnosticLogger,
                 mCommunicationDeviceTracker,
                 mCallStreamingNotification,
+                mBluetoothDeviceManager,
                 mFeatureFlags,
+                mTelephonyFlags,
                 (call, listener, context, timeoutsAdapter, lock) -> mIncomingCallFilterGraph);
 
         when(mPhoneAccountRegistrar.getPhoneAccount(
@@ -375,28 +398,40 @@ public class CallsManagerTest extends TelecomTestCase {
         when(mPhoneAccountRegistrar.getPhoneAccount(
                 eq(SIM_2_HANDLE), any())).thenReturn(SIM_2_ACCOUNT);
         when(mPhoneAccountRegistrar.getPhoneAccount(
+                eq(SIM_3_HANDLE), any())).thenReturn(SIM_3_ACCOUNT);
+        when(mPhoneAccountRegistrar.getPhoneAccount(
+                eq(CALL_PROVIDER_HANDLE), any())).thenReturn(CALL_PROVIDER_ACCOUNT);
+        when(mPhoneAccountRegistrar.getPhoneAccount(
                 eq(WORK_HANDLE), any())).thenReturn(WORK_ACCOUNT);
         when(mToastFactory.makeText(any(), anyInt(), anyInt())).thenReturn(mToast);
         when(mToastFactory.makeText(any(), any(), anyInt())).thenReturn(mToast);
-        when(mIConnectionService.asBinder()).thenReturn(mock(IBinder.class));
-
-        mComponentContextFixture.addConnectionService(
-                SIM_1_ACCOUNT.getAccountHandle().getComponentName(), mIConnectionService);
+        when(mFeatureFlags.separatelyBindToBtIncallService()).thenReturn(false);
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
-        mComponentContextFixture.removeConnectionService(
-                SIM_1_ACCOUNT.getAccountHandle().getComponentName(), mIConnectionService);
         super.tearDown();
     }
 
     @MediumTest
     @Test
     public void testConstructPossiblePhoneAccounts() throws Exception {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(false);
+        setupMsimAccounts();
         // Should be empty since the URI is null.
-        assertEquals(0, mCallsManager.constructPossiblePhoneAccounts(null, null, false, false).size());
+        assertEquals(0, mCallsManager.constructPossiblePhoneAccounts(null, null,
+                false, false, false).size());
+    }
+
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccounts_simulCalling() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupMsimAccounts();
+        // Should be empty since the URI is null.
+        assertEquals(0, mCallsManager.constructPossiblePhoneAccounts(null, null,
+                false, false, false).size());
     }
 
     private Call constructOngoingCall(String callId, PhoneAccountHandle phoneAccountHandle) {
@@ -420,6 +455,7 @@ public class CallsManagerTest extends TelecomTestCase {
         ongoingCall.setState(CallState.ACTIVE, "just cuz");
         return ongoingCall;
     }
+
     /**
      * Verify behavior for multisim devices where we want to ensure that the active sim is used for
      * placing a new call.
@@ -428,15 +464,78 @@ public class CallsManagerTest extends TelecomTestCase {
     @MediumTest
     @Test
     public void testConstructPossiblePhoneAccountsMultiSimActive() throws Exception {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(false);
         setupMsimAccounts();
 
         Call ongoingCall = constructOngoingCall("1", SIM_2_HANDLE);
         mCallsManager.addCall(ongoingCall);
 
         List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
-                TEST_ADDRESS, null, false, false);
+                TEST_ADDRESS, null, false, false, false);
         assertEquals(1, phoneAccountHandles.size());
         assertEquals(SIM_2_HANDLE, phoneAccountHandles.get(0));
+    }
+
+    /**
+     * Verify behavior for multisim devices where we want to ensure that the active sim is used for
+     * placing a new call when a restriction is set as well as other call providers from different
+     * apps.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimActive_simulCallingRestriction() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE,
+                CALL_PROVIDER_HANDLE), Collections.emptySet());
+
+        Call ongoingCall = constructOngoingCall("1", SIM_2_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false, false);
+        assertEquals(Arrays.asList(SIM_2_HANDLE, CALL_PROVIDER_HANDLE), phoneAccountHandles);
+    }
+
+    /**
+     * When we have 3 SIM PhoneAccounts on a device, but only 2 allow simultaneous calling, place a
+     * call on a SIM that allows simultaneous calling and verify that the subset of PhoneAccounts
+     * are available when in a call as well as the call provider.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimActive_simulCallingRestrictionSubset() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE, SIM_3_HANDLE,
+                CALL_PROVIDER_HANDLE), new ArraySet<>(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE)));
+
+        Call ongoingCall = constructOngoingCall("1", SIM_2_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false, false);
+        assertEquals(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE, CALL_PROVIDER_HANDLE),
+                phoneAccountHandles);
+    }
+
+    /**
+     * When we have 3 SIM PhoneAccounts on a device, but only 2 allow simultaneous calling, place a
+     * call on the SIM that does not allow simultaneous calling and verify  that only that SIM and
+     * the separate call provider are allowed to place a second call.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimActive_simulCallingRestrictionSubset2() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE, SIM_3_HANDLE,
+                CALL_PROVIDER_HANDLE), new ArraySet<>(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE)));
+
+        Call ongoingCall = constructOngoingCall("1", SIM_3_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false, false);
+        assertEquals(Arrays.asList(SIM_3_HANDLE, CALL_PROVIDER_HANDLE),
+                phoneAccountHandles);
     }
 
     /**
@@ -446,11 +545,43 @@ public class CallsManagerTest extends TelecomTestCase {
     @MediumTest
     @Test
     public void testConstructPossiblePhoneAccountsMultiSimIdle() throws Exception {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(false);
         setupMsimAccounts();
 
         List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
-                TEST_ADDRESS, null, false, false);
+                TEST_ADDRESS, null, false, false, false);
         assertEquals(2, phoneAccountHandles.size());
+    }
+
+    /**
+     * Verify behavior for multisim devices when there are no calls active and there are no calling
+     * restrictions set; expect both accounts.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimIdle_noSimulCallingRestriction() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsNoSimultaneousCallingRestriction();
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false, false);
+        assertEquals(3, phoneAccountHandles.size());
+    }
+
+    /**
+     * Verify behavior for multisim devices when there are no calls active and there are no calling
+     * restrictions set; expect both accounts.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimIdle_withSimulCallingRestriction() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE,
+                CALL_PROVIDER_HANDLE), Collections.emptySet());
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false, false);
+        assertEquals(3, phoneAccountHandles.size());
     }
 
     /**
@@ -462,6 +593,7 @@ public class CallsManagerTest extends TelecomTestCase {
     @Test
     public void testConstructPossiblePhoneAccountsMultiSimActive_dsdaCallingPossible() throws
             Exception {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(false);
         setupMsimAccounts();
         setMaxActiveVoiceSubscriptions(2);
 
@@ -469,8 +601,26 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.addCall(ongoingCall);
 
         List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
-                TEST_ADDRESS, null, false, false);
+                TEST_ADDRESS, null, false, false, false);
         assertEquals(2, phoneAccountHandles.size());
+    }
+
+    /**
+     * For multisim devices with an ongoing call, verify that all call capable PhoneAccounts are
+     * available when creating a second call.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimActive_simulCalling_dsdaPossible() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsNoSimultaneousCallingRestriction();
+
+        Call ongoingCall = constructOngoingCall("1", SIM_2_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false, false);
+        assertEquals(3, phoneAccountHandles.size());
     }
 
     /**
@@ -482,6 +632,7 @@ public class CallsManagerTest extends TelecomTestCase {
     @Test
     public void testConstructPossiblePhoneAccountsMultiSimActive_dsdaCallingPossible_emergencyCall()
             throws Exception {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(false);
         setupMsimAccounts();
         setMaxActiveVoiceSubscriptions(2);
 
@@ -489,9 +640,94 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.addCall(ongoingCall);
 
         List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
-                TEST_ADDRESS, null, false, true /* isEmergency */);
+                TEST_ADDRESS, null, false, true /* isEmergency */, false);
         assertEquals(1, phoneAccountHandles.size());
         assertEquals(SIM_2_HANDLE, phoneAccountHandles.get(0));
+    }
+
+    /**
+     * For multisim devices with an ongoing call, verify that only the active SIM's
+     * PhoneAccountHandle is available if we have a calling restriction where only one SIM is
+     * active at a time.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimActive_simulCalling_emergencyCall() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE,
+                CALL_PROVIDER_HANDLE), Collections.emptySet());
+
+        Call ongoingCall = constructOngoingCall("1", SIM_2_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, true /* isEmergency */, false);
+        assertEquals(2, phoneAccountHandles.size());
+        assertTrue("Candidate PAHs must contain the SIM account hosting the emergency call",
+                phoneAccountHandles.contains(SIM_2_HANDLE));
+        assertFalse("Candidate PAHs must not contain other SIM accounts",
+                phoneAccountHandles.contains(SIM_1_HANDLE));
+    }
+
+    /**
+     * For devices with an ongoing call on a call provider, verify that when an emergency
+     * call is placed, all SIM accounts are still available for SIM selection.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccounts_callProvider_emergencyCall() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE,
+                CALL_PROVIDER_HANDLE), Collections.emptySet());
+
+        Call ongoingCall = constructOngoingCall("1", CALL_PROVIDER_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, true /* isEmergency */, false);
+        assertEquals(3, phoneAccountHandles.size());
+    }
+
+    /**
+     * For multisim devices with an ongoing call, for backwards compatibility, only allow the
+     * SIM with the active call to be chosen to place an emergency call, even if there is no
+     * calling restriction.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccountsMultiSimActive_simulCallingRest_emergencyCall() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsNoSimultaneousCallingRestriction();
+
+        Call ongoingCall = constructOngoingCall("1", SIM_2_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, true /* isEmergency */, false);
+        assertEquals(2, phoneAccountHandles.size());
+        assertTrue("Candidate PAHs must contain the SIM account hosting the emergency call",
+                phoneAccountHandles.contains(SIM_2_HANDLE));
+        assertFalse("Candidate PAHs must not contain other SIM accounts",
+                phoneAccountHandles.contains(SIM_1_HANDLE));
+    }
+
+    /**
+     * For multisim devices with an ongoing call on a call provider, it is still possible to place
+     * a SIM call on any SIM account.
+     */
+    @MediumTest
+    @Test
+    public void testConstructPossiblePhoneAccounts_crossAccount_simulCalling() {
+        when(mTelephonyFlags.simultaneousCallingIndications()).thenReturn(true);
+        setupAccountsWithCallingRestriction(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE,
+                CALL_PROVIDER_HANDLE), Collections.emptySet());
+
+        Call ongoingCall = constructOngoingCall("1", CALL_PROVIDER_HANDLE);
+        mCallsManager.addCall(ongoingCall);
+
+        List<PhoneAccountHandle> phoneAccountHandles = mCallsManager.constructPossiblePhoneAccounts(
+                TEST_ADDRESS, null, false, false /* isEmergency */, false);
+        assertEquals(3, phoneAccountHandles.size());
     }
 
     private void setupCallerInfoLookupHelper() {
@@ -2837,37 +3073,6 @@ public class CallsManagerTest extends TelecomTestCase {
         assertTrue(result.contains("onReceiveResult"));
     }
 
-    @Test
-    public void testConnectionServiceCreateConnectionTimeout() throws Exception {
-        mSetRlagsRule.enableFlags(Flags.FLAG_UNBIND_TIMEOUT_CONNECTIONS);
-        ConnectionServiceWrapper service = new ConnectionServiceWrapper(
-                SIM_1_ACCOUNT.getAccountHandle().getComponentName(), null,
-                mPhoneAccountRegistrar, mCallsManager, mContext, mLock, null,
-                mFeatureFlags);
-        TestScheduledExecutorService scheduledExecutorService = new TestScheduledExecutorService();
-        service.setScheduledExecutorService(scheduledExecutorService);
-        Call call = addSpyCall();
-        service.addCall(call);
-        when(call.isCreateConnectionComplete()).thenReturn(false);
-        CreateConnectionResponse response = mock(CreateConnectionResponse.class);
-
-        service.createConnection(call, response);
-        waitUntilConditionIsTrueOrTimeout(new Condition() {
-            @Override
-            public Object expected() {
-                return true;
-            }
-
-            @Override
-            public Object actual() {
-                return scheduledExecutorService.isRunnableScheduledAtTime(15000L);
-            }
-        }, 5000L, "Expected job failed to schedule");
-        scheduledExecutorService.advanceTime(15000L);
-        verify(response).handleCreateConnectionFailure(
-                eq(new DisconnectCause(DisconnectCause.ERROR)));
-    }
-
     @SmallTest
     @Test
     public void testOnFailedOutgoingCallUnholdsCallAfterLocallyDisconnect() {
@@ -3077,11 +3282,9 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.createActionSetCallStateAndPerformAction(
                 call, CallState.DISCONNECTED, "");
 
-        verify(sourceCall).onConnectionEvent(eq(Connection.EVENT_HANDOVER_FAILED), any());
         verify(sourceCall).onHandoverFailed(
                     android.telecom.Call.Callback.HANDOVER_FAILURE_USER_REJECTED);
 
-        verify(call).sendCallEvent(eq(android.telecom.Call.EVENT_HANDOVER_FAILED), any());
         verify(call).markFinishedHandoverStateAndCleanup(HandoverState.HANDOVER_FAILED);
     }
 
@@ -3094,9 +3297,6 @@ public class CallsManagerTest extends TelecomTestCase {
         when(call.getHandoverState()).thenReturn(HandoverState.HANDOVER_FROM_STARTED);
         mCallsManager.createActionSetCallStateAndPerformAction(
                 call, CallState.DISCONNECTED, "");
-
-        verify(destinationCall).sendCallEvent(
-                eq(android.telecom.Call.EVENT_HANDOVER_SOURCE_DISCONNECTED), any());
     }
 
     @SmallTest
@@ -3110,11 +3310,8 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.createActionSetCallStateAndPerformAction(
                 call, CallState.DISCONNECTED, "");
 
-        verify(call).onConnectionEvent(eq(Connection.EVENT_HANDOVER_COMPLETE), any());
         verify(call).onHandoverComplete();
         verify(call).markFinishedHandoverStateAndCleanup(HandoverState.HANDOVER_COMPLETE);
-        verify(destinationCall).sendCallEvent(
-                eq(android.telecom.Call.EVENT_HANDOVER_COMPLETE), any());
         verify(destinationCall).onHandoverComplete();
     }
 
@@ -3131,11 +3328,8 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.createActionSetCallStateAndPerformAction(
                 call, CallState.DISCONNECTED, "");
 
-        verify(call).onConnectionEvent(eq(Connection.EVENT_HANDOVER_COMPLETE), any());
         verify(call).onHandoverComplete();
         verify(call).markFinishedHandoverStateAndCleanup(HandoverState.HANDOVER_COMPLETE);
-        verify(destinationCall).sendCallEvent(
-                eq(android.telecom.Call.EVENT_HANDOVER_COMPLETE), any());
         verify(destinationCall).onHandoverComplete();
         verify(otherCall).disconnect();
     }
@@ -3240,7 +3434,7 @@ public class CallsManagerTest extends TelecomTestCase {
                 .thenReturn(true);
         mComponentContextFixture.getBroadcastReceivers().forEach(c -> c.onReceive(mContext,
                 new Intent(
-                        BlockedNumberContract.SystemContract
+                        BlockedNumberContract.BlockedNumbers
                                 .ACTION_BLOCK_SUPPRESSION_STATE_CHANGED)));
         verify(mBlockedNumbersAdapter).updateEmergencyCallNotification(any(Context.class),
                 eq(true));
@@ -3249,7 +3443,7 @@ public class CallsManagerTest extends TelecomTestCase {
                 .thenReturn(false);
         mComponentContextFixture.getBroadcastReceivers().forEach(c -> c.onReceive(mContext,
                 new Intent(
-                        BlockedNumberContract.SystemContract
+                        BlockedNumberContract.BlockedNumbers
                                 .ACTION_BLOCK_SUPPRESSION_STATE_CHANGED)));
         verify(mBlockedNumbersAdapter).updateEmergencyCallNotification(any(Context.class),
                 eq(false));
@@ -3360,6 +3554,28 @@ public class CallsManagerTest extends TelecomTestCase {
         assertTrue(mCallsManager.isInSelfManagedCall(TEST_PACKAGE_NAME, TEST_USER_HANDLE));
     }
 
+    @SmallTest
+    @Test
+    public void testBindToBtServiceSeparately() {
+        when(mFeatureFlags.separatelyBindToBtIncallService()).thenReturn(true);
+        Call call = addSpyCall(CallState.NEW);
+        CallFilteringResult result = new CallFilteringResult.Builder()
+                .setShouldAllowCall(true)
+                .setShouldReject(false)
+                .build();
+        when(mInCallController.bindToBTService(eq(call))).thenReturn(
+                CompletableFuture.completedFuture(true));
+        when(mInCallController.isBoundAndConnectedToBTService(any(UserHandle.class)))
+                .thenReturn(false);
+
+        mCallsManager.onCallFilteringComplete(call, result, false);
+
+        InOrder inOrder = inOrder(mInCallController, call, mInCallController);
+
+        inOrder.verify(mInCallController).bindToBTService(eq(call));
+        inOrder.verify(call).setState(eq(CallState.RINGING), anyString());
+    }
+
 
     private Call addSpyCall() {
         return addSpyCall(SIM_2_HANDLE, CallState.ACTIVE);
@@ -3390,8 +3606,8 @@ public class CallsManagerTest extends TelecomTestCase {
         // Mocks some methods to not call the real method.
         doNothing().when(callSpy).unhold();
         doNothing().when(callSpy).hold();
-        doNothing().when(callSpy).answer(Matchers.anyInt());
-        doNothing().when(callSpy).setStartWithSpeakerphoneOn(Matchers.anyBoolean());
+        doNothing().when(callSpy).answer(ArgumentMatchers.anyInt());
+        doNothing().when(callSpy).setStartWithSpeakerphoneOn(ArgumentMatchers.anyBoolean());
 
         mCallsManager.addCall(callSpy);
         return callSpy;
@@ -3405,8 +3621,8 @@ public class CallsManagerTest extends TelecomTestCase {
         doNothing().when(callSpy).unhold();
         doNothing().when(callSpy).hold();
         doNothing().when(callSpy).disconnect();
-        doNothing().when(callSpy).answer(Matchers.anyInt());
-        doNothing().when(callSpy).setStartWithSpeakerphoneOn(Matchers.anyBoolean());
+        doNothing().when(callSpy).answer(ArgumentMatchers.anyInt());
+        doNothing().when(callSpy).setStartWithSpeakerphoneOn(ArgumentMatchers.anyBoolean());
 
         return callSpy;
     }
@@ -3449,6 +3665,9 @@ public class CallsManagerTest extends TelecomTestCase {
         callback.onRequestFocusDone(call);
     }
 
+    /**
+     * Set up 2 SIM accounts in DSDS mode, where only one SIM can be active at a time for calls.
+     */
     private void setupMsimAccounts() {
         TelephonyManager mockTelephonyManager = mComponentContextFixture.getTelephonyManager();
         when(mockTelephonyManager.getMaxNumberOfSimultaneouslyActiveSims()).thenReturn(1);
@@ -3459,24 +3678,57 @@ public class CallsManagerTest extends TelecomTestCase {
                 new ArrayList<>(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE)));
     }
 
+    /**
+     * Set up 2 SIM accounts in DSDS mode and one call provider, where there is no restriction on
+     * simultaneous calls across accounts.
+     */
+    private void setupAccountsNoSimultaneousCallingRestriction() {
+        when(mPhoneAccountRegistrar.getCallCapablePhoneAccounts(any(), anyBoolean(),
+                any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
+                new ArrayList<>(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE, CALL_PROVIDER_HANDLE)));
+        when(mPhoneAccountRegistrar.getSimPhoneAccountsOfCurrentUser()).thenReturn(
+                new ArrayList<>(Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE)));
+    }
+
+    /**
+     * Set up the call capable PhoneAccounts passed in here to have simultaneous calling
+     * restrictions. If the callCapableHandle is a SIM account and it is in the restriction set, we
+     * will set that callCapableHandle's restriction to the Set. If not, we will set the restriction
+     * to allow no other simultaneous calls.
+     */
+    private void setupAccountsWithCallingRestriction(List<PhoneAccountHandle> callCapableHandles,
+            Set<PhoneAccountHandle> restrictions) {
+        when(mPhoneAccountRegistrar.getCallCapablePhoneAccounts(any(), anyBoolean(),
+                any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
+                new ArrayList<>(callCapableHandles));
+        List<PhoneAccountHandle> allSims = Arrays.asList(SIM_1_HANDLE, SIM_2_HANDLE,
+                SIM_3_HANDLE);
+        List<PhoneAccountHandle> simsToTest = callCapableHandles.stream()
+                .filter(allSims::contains).toList();
+        when(mPhoneAccountRegistrar.getSimPhoneAccountsOfCurrentUser()).thenReturn(simsToTest);
+        // Remap the PhoneAccounts to inherit the restriction set
+        for (PhoneAccountHandle callCapableHandle : callCapableHandles) {
+            PhoneAccount pa = mPhoneAccountRegistrar.getPhoneAccount(
+                    callCapableHandle, callCapableHandle.getUserHandle());
+            assertNotNull("test setup error: could not find PA for PAH:" + callCapableHandle,
+                    pa);
+            // For simplicity, for testing only apply restrictions to SIM accounts
+            if (!allSims.contains(callCapableHandle)) continue;
+            if (restrictions.contains(callCapableHandle)) {
+                pa = new PhoneAccount.Builder(pa)
+                        .setSimultaneousCallingRestriction(restrictions).build();
+            } else {
+                pa = new PhoneAccount.Builder(pa)
+                        .setSimultaneousCallingRestriction(Collections.emptySet()).build();
+            }
+            when(mPhoneAccountRegistrar.getPhoneAccount(eq(callCapableHandle),
+                    any())).thenReturn(pa);
+        }
+    }
+
     private void setMaxActiveVoiceSubscriptions(int num) {
         TelephonyManager mockTelephonyManager = mComponentContextFixture.getTelephonyManager();
         when(mockTelephonyManager.getPhoneCapability()).thenReturn(mPhoneCapability);
         when(mPhoneCapability.getMaxActiveVoiceSubscriptions()).thenReturn(num);
-    }
-
-    private void waitUntilConditionIsTrueOrTimeout(Condition condition, long timeout,
-                                                   String description) throws InterruptedException {
-        final long start = System.currentTimeMillis();
-        while (!condition.expected().equals(condition.actual())
-                && System.currentTimeMillis() - start < timeout) {
-            sleep(50);
-        }
-        assertEquals(description, condition.expected(), condition.actual());
-    }
-
-    protected interface Condition {
-        Object expected();
-        Object actual();
     }
 }

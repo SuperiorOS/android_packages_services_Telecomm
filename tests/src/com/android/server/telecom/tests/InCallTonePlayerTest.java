@@ -32,7 +32,8 @@ import android.bluetooth.BluetoothDevice;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.ToneGenerator;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.AsyncRingtonePlayer;
 import com.android.server.telecom.Call;

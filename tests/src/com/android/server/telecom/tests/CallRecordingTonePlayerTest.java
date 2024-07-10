@@ -28,7 +28,6 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,11 +40,11 @@ import android.media.AudioManager;
 import android.media.AudioRecordingConfiguration;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.telecom.PhoneAccountHandle;
-import android.test.suitebuilder.annotation.MediumTest;
+
+import androidx.test.filters.MediumTest;
 
 import com.android.dx.mockito.inline.extended.ExtendedMockito;
 import com.android.server.telecom.Call;

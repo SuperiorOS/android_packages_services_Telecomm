@@ -1,4 +1,5 @@
 package: "com.android.server.telecom.flags"
+container: "system"
 
 flag {
   name: "use_device_provided_serialized_ringer_vibration"

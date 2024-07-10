@@ -141,6 +141,7 @@ public class TelecomSystem {
     private final TelecomServiceImpl mTelecomServiceImpl;
     private final ContactsAsyncHelper mContactsAsyncHelper;
     private final DialerCodeReceiver mDialerCodeReceiver;
+    private final FeatureFlags mFeatureFlags;
 
     private boolean mIsBootComplete = false;
 
@@ -229,8 +230,10 @@ public class TelecomSystem {
             Executor asyncTaskExecutor,
             Executor asyncCallAudioTaskExecutor,
             BlockedNumbersAdapter blockedNumbersAdapter,
-            FeatureFlags featureFlags) {
+            FeatureFlags featureFlags,
+            com.android.internal.telephony.flags.FeatureFlags telephonyFlags) {
         mContext = context.getApplicationContext();
+        mFeatureFlags = featureFlags;
         LogUtils.initLogging(mContext);
         android.telecom.Log.setLock(mLock);
         AnomalyReporter.initialize(mContext);
@@ -245,7 +248,7 @@ public class TelecomSystem {
         try {
             mPhoneAccountRegistrar = new PhoneAccountRegistrar(mContext, mLock, defaultDialerCache,
                     packageName -> AppLabelProxy.Util.getAppLabel(
-                            mContext.getPackageManager(), packageName));
+                            mContext.getPackageManager(), packageName), null);
 
             mContactsAsyncHelper = contactsAsyncHelperFactory.create(
                     new ContactsAsyncHelper.ContentResolverAdapter() {
@@ -347,14 +350,22 @@ public class TelecomSystem {
             ToastFactory toastFactory = new ToastFactory() {
                 @Override
                 public Toast makeText(Context context, int resId, int duration) {
-                    return Toast.makeText(context, context.getMainLooper(),
-                            context.getString(resId),
-                            duration);
+                    if (mFeatureFlags.telecomResolveHiddenDependencies()) {
+                        return Toast.makeText(context, resId, duration);
+                    } else {
+                        return Toast.makeText(context, context.getMainLooper(),
+                                context.getString(resId),
+                                duration);
+                    }
                 }
 
                 @Override
                 public Toast makeText(Context context, CharSequence text, int duration) {
-                    return Toast.makeText(context, context.getMainLooper(), text, duration);
+                    if (mFeatureFlags.telecomResolveHiddenDependencies()) {
+                        return Toast.makeText(context, text, duration);
+                    } else {
+                        return Toast.makeText(context, context.getMainLooper(), text, duration);
+                    }
                 }
             };
 
@@ -415,7 +426,9 @@ public class TelecomSystem {
                     emergencyCallDiagnosticLogger,
                     communicationDeviceTracker,
                     callStreamingNotification,
+                    bluetoothDeviceManager,
                     featureFlags,
+                    telephonyFlags,
                     IncomingCallFilterGraph::new);
 
             mIncomingCallNotifier = incomingCallNotifier;
@@ -485,6 +498,7 @@ public class TelecomSystem {
                     new TelecomServiceImpl.SubscriptionManagerAdapterImpl(),
                     new TelecomServiceImpl.SettingsSecureAdapterImpl(),
                     featureFlags,
+                    null,
                     mLock);
         } finally {
             Log.endSession();

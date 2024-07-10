@@ -223,7 +223,7 @@ public class TelecomService extends Service implements TelecomSystem.Component {
                                 @Override
                                 public boolean shouldShowEmergencyCallNotification(Context
                                         context) {
-                                    return BlockedNumberContract.SystemContract
+                                    return BlockedNumberContract.BlockedNumbers
                                             .shouldShowEmergencyCallNotification(context);
                                 }
 
@@ -234,7 +234,8 @@ public class TelecomService extends Service implements TelecomSystem.Component {
                                             showNotification);
                                 }
                             },
-                            new FeatureFlagsImpl()));
+                            new FeatureFlagsImpl(),
+                            new com.android.internal.telephony.flags.FeatureFlagsImpl()));
         }
     }
 

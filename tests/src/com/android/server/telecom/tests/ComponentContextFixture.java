@@ -102,7 +102,7 @@ import static android.content.Context.DEVICE_ID_DEFAULT;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -290,6 +290,8 @@ public class ComponentContextFixture implements TestFixture<Context> {
                 return Context.DROPBOX_SERVICE;
             } else if (svcClass == BugreportManager.class) {
                 return Context.BUGREPORT_SERVICE;
+            } else if (svcClass == TelecomManager.class) {
+                return Context.TELECOM_SERVICE;
             }
             throw new UnsupportedOperationException(svcClass.getName());
         }

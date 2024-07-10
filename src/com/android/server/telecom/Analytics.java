@@ -721,7 +721,7 @@ public class Analytics {
 
     private static int getCarrierId(Context context) {
         SubscriptionManager subscriptionManager =
-                context.getSystemService(SubscriptionManager.class);
+                context.getSystemService(SubscriptionManager.class).createForAllUserProfiles();
         List<SubscriptionInfo> subInfos = subscriptionManager.getActiveSubscriptionInfoList();
         if (subInfos == null) {
             return -1;

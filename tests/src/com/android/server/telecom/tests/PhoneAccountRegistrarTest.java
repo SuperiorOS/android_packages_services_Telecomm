@@ -23,14 +23,14 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,13 +57,14 @@ import android.telecom.TelecomManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
-import android.test.suitebuilder.annotation.SmallTest;
-import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Xml;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
 
 import com.android.internal.telecom.IConnectionService;
+import com.android.internal.telephony.flags.FeatureFlags;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.telecom.AppLabelProxy;
 import com.android.server.telecom.DefaultDialerCache;
@@ -92,6 +93,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -117,6 +119,7 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
     @Mock private TelecomManager mTelecomManager;
     @Mock private DefaultDialerCache mDefaultDialerCache;
     @Mock private AppLabelProxy mAppLabelProxy;
+    @Mock private FeatureFlags mTelephonyFeatureFlags;
 
     @Override
     @Before
@@ -134,8 +137,10 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
         when(mAppLabelProxy.getAppLabel(anyString()))
                 .thenReturn(TEST_LABEL);
         mRegistrar = new PhoneAccountRegistrar(
-                mComponentContextFixture.getTestDouble().getApplicationContext(),
-                mLock, FILE_NAME, mDefaultDialerCache, mAppLabelProxy);
+                mComponentContextFixture.getTestDouble().getApplicationContext(), mLock, FILE_NAME,
+                mDefaultDialerCache, mAppLabelProxy, mTelephonyFeatureFlags);
+        when(mFeatureFlags.onlyUpdateTelephonyOnValidSubIds()).thenReturn(false);
+        when(mTelephonyFeatureFlags.workProfileApiSplit()).thenReturn(false);
     }
 
     @Override
@@ -154,12 +159,12 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
     public void testPhoneAccountHandle() throws Exception {
         PhoneAccountHandle input = new PhoneAccountHandle(new ComponentName("pkg0", "cls0"), "id0");
         PhoneAccountHandle result = roundTripXml(this, input,
-                PhoneAccountRegistrar.sPhoneAccountHandleXml, mContext);
+                PhoneAccountRegistrar.sPhoneAccountHandleXml, mContext, mTelephonyFeatureFlags);
         assertPhoneAccountHandleEquals(input, result);
 
         PhoneAccountHandle inputN = new PhoneAccountHandle(new ComponentName("pkg0", "cls0"), null);
         PhoneAccountHandle resultN = roundTripXml(this, inputN,
-                PhoneAccountRegistrar.sPhoneAccountHandleXml, mContext);
+                PhoneAccountRegistrar.sPhoneAccountHandleXml, mContext, mTelephonyFeatureFlags);
         Log.i(this, "inputN = %s, resultN = %s", inputN, resultN);
         assertPhoneAccountHandleEquals(inputN, resultN);
     }
@@ -182,7 +187,112 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
                 .setIsEnabled(true)
                 .build();
         PhoneAccount result = roundTripXml(this, input, PhoneAccountRegistrar.sPhoneAccountXml,
-                mContext);
+                mContext, mTelephonyFeatureFlags);
+
+        assertPhoneAccountEquals(input, result);
+    }
+
+    @MediumTest
+    @Test
+    public void testPhoneAccountParsing_simultaneousCallingRestriction() throws Exception {
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        // workaround: UserManager converts the user to a serial and back, we need to mock this
+        // behavior, unfortunately: USER_HANDLE_10 <-> 10L
+        UserManager userManager = UserManager.get(mContext);
+        doReturn(10L).when(userManager).getSerialNumberForUser(eq(USER_HANDLE_10));
+        doReturn(USER_HANDLE_10).when(userManager).getUserForSerialNumber(eq(10L));
+        Bundle testBundle = new Bundle();
+        testBundle.putInt("EXTRA_INT_1", 1);
+        testBundle.putInt("EXTRA_INT_100", 100);
+        testBundle.putBoolean("EXTRA_BOOL_TRUE", true);
+        testBundle.putBoolean("EXTRA_BOOL_FALSE", false);
+        testBundle.putString("EXTRA_STR1", "Hello");
+        testBundle.putString("EXTRA_STR2", "There");
+
+        Set<PhoneAccountHandle> restriction = new HashSet<>(10);
+        for (int i = 0; i < 10; i++) {
+            restriction.add(makeQuickAccountHandleForUser("id" + i, USER_HANDLE_10));
+        }
+
+        PhoneAccount input = makeQuickAccountBuilder("id0", 0, USER_HANDLE_10)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_VOICEMAIL)
+                .setExtras(testBundle)
+                .setIsEnabled(true)
+                .setSimultaneousCallingRestriction(restriction)
+                .build();
+        PhoneAccount result = roundTripXml(this, input, PhoneAccountRegistrar.sPhoneAccountXml,
+                mContext, mTelephonyFeatureFlags);
+
+        assertPhoneAccountEquals(input, result);
+    }
+
+    @MediumTest
+    @Test
+    public void testPhoneAccountParsing_simultaneousCallingRestrictionOnOffFlag() throws Exception {
+        // Start the test with the flag on
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        // workaround: UserManager converts the user to a serial and back, we need to mock this
+        // behavior, unfortunately: USER_HANDLE_10 <-> 10L
+        UserManager userManager = UserManager.get(mContext);
+        doReturn(10L).when(userManager).getSerialNumberForUser(eq(USER_HANDLE_10));
+        doReturn(USER_HANDLE_10).when(userManager).getUserForSerialNumber(eq(10L));
+        Bundle testBundle = new Bundle();
+        testBundle.putInt("EXTRA_INT_1", 1);
+        testBundle.putInt("EXTRA_INT_100", 100);
+        testBundle.putBoolean("EXTRA_BOOL_TRUE", true);
+        testBundle.putBoolean("EXTRA_BOOL_FALSE", false);
+        testBundle.putString("EXTRA_STR1", "Hello");
+        testBundle.putString("EXTRA_STR2", "There");
+
+        Set<PhoneAccountHandle> restriction = new HashSet<>(10);
+        for (int i = 0; i < 10; i++) {
+            restriction.add(makeQuickAccountHandleForUser("id" + i, USER_HANDLE_10));
+        }
+
+        PhoneAccount input = makeQuickAccountBuilder("id0", 0, USER_HANDLE_10)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_VOICEMAIL)
+                .setExtras(testBundle)
+                .setIsEnabled(true)
+                .setSimultaneousCallingRestriction(restriction)
+                .build();
+        byte[] xmlData = toXml(input, PhoneAccountRegistrar.sPhoneAccountXml, mContext,
+                mTelephonyFeatureFlags);
+        // Simulate turning off the flag after reboot
+        doReturn(false).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        PhoneAccount result = fromXml(xmlData, PhoneAccountRegistrar.sPhoneAccountXml, mContext,
+                mTelephonyFeatureFlags);
+
+        assertNotNull(result);
+        assertFalse(result.hasSimultaneousCallingRestriction());
+    }
+
+    @MediumTest
+    @Test
+    public void testPhoneAccountParsing_simultaneousCallingRestrictionOffOnFlag() throws Exception {
+        // Start the test with the flag on
+        doReturn(false).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        Bundle testBundle = new Bundle();
+        testBundle.putInt("EXTRA_INT_1", 1);
+        testBundle.putInt("EXTRA_INT_100", 100);
+        testBundle.putBoolean("EXTRA_BOOL_TRUE", true);
+        testBundle.putBoolean("EXTRA_BOOL_FALSE", false);
+        testBundle.putString("EXTRA_STR1", "Hello");
+        testBundle.putString("EXTRA_STR2", "There");
+
+        PhoneAccount input = makeQuickAccountBuilder("id0", 0, USER_HANDLE_10)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_VOICEMAIL)
+                .setExtras(testBundle)
+                .setIsEnabled(true)
+                .build();
+        byte[] xmlData = toXml(input, PhoneAccountRegistrar.sPhoneAccountXml, mContext,
+                mTelephonyFeatureFlags);
+        // Simulate turning on the flag after reboot
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        PhoneAccount result = fromXml(xmlData, PhoneAccountRegistrar.sPhoneAccountXml, mContext,
+                mTelephonyFeatureFlags);
 
         assertPhoneAccountEquals(input, result);
     }
@@ -259,7 +369,8 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
         when(UserManager.get(mContext).getUserForSerialNumber(0L))
                 .thenReturn(input.userHandle);
         DefaultPhoneAccountHandle result = roundTripXml(this, input,
-                PhoneAccountRegistrar.sDefaultPhoneAcountHandleXml, mContext);
+                PhoneAccountRegistrar.sDefaultPhoneAccountHandleXml, mContext,
+                mTelephonyFeatureFlags);
 
         assertDefaultPhoneAccountHandleEquals(input, result);
     }
@@ -289,7 +400,7 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
                 .setExtras(testBundle)
                 .build();
         PhoneAccount result = roundTripXml(this, input, PhoneAccountRegistrar.sPhoneAccountXml,
-                mContext);
+                mContext, mTelephonyFeatureFlags);
 
         Bundle extras = result.getExtras();
         assertFalse(extras.keySet().contains("EXTRA_STR2"));
@@ -303,8 +414,7 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
     public void testState() throws Exception {
         PhoneAccountRegistrar.State input = makeQuickState();
         PhoneAccountRegistrar.State result = roundTripXml(this, input,
-                PhoneAccountRegistrar.sStateXml,
-                mContext);
+                PhoneAccountRegistrar.sStateXml, mContext, mTelephonyFeatureFlags);
         assertStateEquals(input, result);
     }
 
@@ -1624,6 +1734,107 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
     }
 
     /**
+     * Ensure an IllegalArgumentException is thrown when adding too many PhoneAccountHandles to
+     * a PhoneAccount.
+     */
+    @Test
+    public void testLimitOnSimultaneousCallingRestriction_tooManyElements() throws Exception {
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        mComponentContextFixture.addConnectionService(makeQuickConnectionServiceComponentName(),
+                Mockito.mock(IConnectionService.class));
+        Set<PhoneAccountHandle> tooManyElements = new HashSet<>(11);
+        for (int i = 0; i < 11; i++) {
+            tooManyElements.add(makeQuickAccountHandle(TEST_ID + i));
+        }
+        PhoneAccount tooManyRestrictionsPA = new PhoneAccount.Builder(
+                makeQuickAccountHandle(TEST_ID), TEST_LABEL)
+                .setSimultaneousCallingRestriction(tooManyElements)
+                .build();
+        try {
+            mRegistrar.registerPhoneAccount(tooManyRestrictionsPA);
+            fail("should have hit registrations exception in "
+                    + "enforceSimultaneousCallingRestrictionLimit");
+        } catch (IllegalArgumentException e) {
+            // pass test
+        }
+    }
+
+    /**
+     * Ensure an IllegalArgumentException is thrown when adding a PhoneAccountHandle where the
+     * package name field is too large.
+     */
+    @Test
+    public void testLimitOnSimultaneousCallingRestriction_InvalidPackageName() throws Exception {
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        mComponentContextFixture.addConnectionService(makeQuickConnectionServiceComponentName(),
+                Mockito.mock(IConnectionService.class));
+        Set<PhoneAccountHandle> invalidElement = new HashSet<>(1);
+        invalidElement.add(new PhoneAccountHandle(new ComponentName(INVALID_STR, "Class"),
+                TEST_ID));
+        PhoneAccount invalidRestrictionPA = new PhoneAccount.Builder(
+                makeQuickAccountHandle(TEST_ID), TEST_LABEL)
+                .setSimultaneousCallingRestriction(invalidElement)
+                .build();
+        try {
+            mRegistrar.registerPhoneAccount(invalidRestrictionPA);
+            fail("should have hit package name size limit exception in "
+                    + "enforceSimultaneousCallingRestrictionLimit");
+        } catch (IllegalArgumentException e) {
+            // pass test
+        }
+    }
+
+    /**
+     * Ensure an IllegalArgumentException is thrown when adding a PhoneAccountHandle where the
+     * class name field is too large.
+     */
+    @Test
+    public void testLimitOnSimultaneousCallingRestriction_InvalidClassName() throws Exception {
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        mComponentContextFixture.addConnectionService(makeQuickConnectionServiceComponentName(),
+                Mockito.mock(IConnectionService.class));
+        Set<PhoneAccountHandle> invalidElement = new HashSet<>(1);
+        invalidElement.add(new PhoneAccountHandle(new ComponentName("pkg", INVALID_STR),
+                TEST_ID));
+        PhoneAccount invalidRestrictionPA = new PhoneAccount.Builder(
+                makeQuickAccountHandle(TEST_ID), TEST_LABEL)
+                .setSimultaneousCallingRestriction(invalidElement)
+                .build();
+        try {
+            mRegistrar.registerPhoneAccount(invalidRestrictionPA);
+            fail("should have hit class name size limit exception in "
+                    + "enforceSimultaneousCallingRestrictionLimit");
+        } catch (IllegalArgumentException e) {
+            // pass test
+        }
+    }
+
+    /**
+     * Ensure an IllegalArgumentException is thrown when adding a PhoneAccountHandle where the
+     * ID field is too large.
+     */
+    @Test
+    public void testLimitOnSimultaneousCallingRestriction_InvalidIdSize() throws Exception {
+        doReturn(true).when(mTelephonyFeatureFlags).simultaneousCallingIndications();
+        mComponentContextFixture.addConnectionService(makeQuickConnectionServiceComponentName(),
+                Mockito.mock(IConnectionService.class));
+        Set<PhoneAccountHandle> invalidIdElement = new HashSet<>(1);
+        invalidIdElement.add(new PhoneAccountHandle(makeQuickConnectionServiceComponentName(),
+                INVALID_STR));
+        PhoneAccount invalidRestrictionPA = new PhoneAccount.Builder(
+                makeQuickAccountHandle(TEST_ID), TEST_LABEL)
+                .setSimultaneousCallingRestriction(invalidIdElement)
+                .build();
+        try {
+            mRegistrar.registerPhoneAccount(invalidRestrictionPA);
+            fail("should have hit ID size limit exception in "
+                    + "enforceSimultaneousCallingRestrictionLimit");
+        } catch (IllegalArgumentException e) {
+            // pass test
+        }
+    }
+
+    /**
      * Ensure an IllegalArgumentException is thrown when adding an address over the limit
      */
     @Test
@@ -1698,6 +1909,56 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
         } finally {
             mRegistrar.unregisterPhoneAccount(account.getAccountHandle());
         }
+    }
+
+    @Test
+    public void testGetPhoneAccountAcrossUsers() throws Exception {
+        when(mTelephonyFeatureFlags.workProfileApiSplit()).thenReturn(true);
+        mComponentContextFixture.addConnectionService(makeQuickConnectionServiceComponentName(),
+                Mockito.mock(IConnectionService.class));
+
+        PhoneAccount accountForCurrent = makeQuickAccountBuilder("id_0", 0, UserHandle.CURRENT)
+                .setCapabilities(PhoneAccount.CAPABILITY_CONNECTION_MANAGER
+                        | PhoneAccount.CAPABILITY_CALL_PROVIDER).build();
+        PhoneAccount accountForAll = makeQuickAccountBuilder("id_0", 0, UserHandle.ALL)
+                .setCapabilities(PhoneAccount.CAPABILITY_CONNECTION_MANAGER
+                        | PhoneAccount.CAPABILITY_CALL_PROVIDER
+                        | PhoneAccount.CAPABILITY_MULTI_USER).build();
+        PhoneAccount accountForWorkProfile = makeQuickAccountBuilder("id_1", 1, USER_HANDLE_10)
+                .setCapabilities(PhoneAccount.CAPABILITY_CONNECTION_MANAGER
+                        | PhoneAccount.CAPABILITY_CALL_PROVIDER).build();
+
+        registerAndEnableAccount(accountForCurrent);
+        registerAndEnableAccount(accountForAll);
+        registerAndEnableAccount(accountForWorkProfile);
+
+        List<PhoneAccount> accountsForUser = mRegistrar.getPhoneAccounts(0, 0,
+                null, null, false, USER_HANDLE_10, false, false);
+        List<PhoneAccount> accountsVisibleUser = mRegistrar.getPhoneAccounts(0, 0,
+                null, null, false, USER_HANDLE_10, false, true);
+        List<PhoneAccount> accountsAcrossUser = mRegistrar.getPhoneAccounts(0, 0,
+                null, null, false, USER_HANDLE_10, true, false);
+
+        // Return the account exactly matching the user if it exists
+        assertEquals(1, accountsForUser.size());
+        assertTrue(accountsForUser.contains(accountForWorkProfile));
+        // The accounts visible to the user without across user permission
+        assertEquals(2, accountsVisibleUser.size());
+        assertTrue(accountsVisibleUser.containsAll(accountsForUser));
+        assertTrue(accountsVisibleUser.contains(accountForAll));
+        // The accounts visible to the user with across user permission
+        assertEquals(3, accountsAcrossUser.size());
+        assertTrue(accountsAcrossUser.containsAll(accountsVisibleUser));
+        assertTrue(accountsAcrossUser.contains(accountForCurrent));
+
+        mRegistrar.unregisterPhoneAccount(accountForWorkProfile.getAccountHandle());
+
+        accountsForUser = mRegistrar.getPhoneAccounts(0, 0,
+                null, null, false, USER_HANDLE_10, false, false);
+
+        // Return the account visible for the user if no account exactly matches the user
+        assertEquals(1, accountsForUser.size());
+        assertTrue(accountsForUser.contains(accountForAll));
     }
 
     private static PhoneAccount.Builder makeBuilderWithBindCapabilities(PhoneAccountHandle handle) {
@@ -1818,33 +2079,39 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
             Object self,
             T input,
             PhoneAccountRegistrar.XmlSerialization<T> xml,
-            Context context)
+            Context context,
+            FeatureFlags telephonyFeatureFlags)
             throws Exception {
         Log.d(self, "Input = %s", input);
 
-        byte[] data;
-        {
-            XmlSerializer serializer = new FastXmlSerializer();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            serializer.setOutput(new BufferedOutputStream(baos), "utf-8");
-            xml.writeToXml(input, serializer, context);
-            serializer.flush();
-            data = baos.toByteArray();
-        }
+        byte[] data = toXml(input, xml, context, telephonyFeatureFlags);
 
         Log.i(self, "====== XML data ======\n%s", new String(data));
 
-        T result = null;
-        {
-            XmlPullParser parser = Xml.newPullParser();
-            parser.setInput(new BufferedInputStream(new ByteArrayInputStream(data)), null);
-            parser.nextTag();
-            result = xml.readFromXml(parser, MAX_VERSION, context);
-        }
+        T result = fromXml(data, xml, context, telephonyFeatureFlags);
 
         Log.i(self, "result = " + result);
 
         return result;
+    }
+
+    private static <T> byte[] toXml(T input, PhoneAccountRegistrar.XmlSerialization<T> xml,
+            Context context, FeatureFlags telephonyFeatureFlags) throws Exception {
+        XmlSerializer serializer = new FastXmlSerializer();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        serializer.setOutput(new BufferedOutputStream(baos), "utf-8");
+        xml.writeToXml(input, serializer, context, telephonyFeatureFlags);
+        serializer.flush();
+        return baos.toByteArray();
+    }
+
+    private static <T> T fromXml(byte[] data, PhoneAccountRegistrar.XmlSerialization<T> xml,
+            Context context, FeatureFlags telephonyFeatureFlags) throws Exception {
+        XmlPullParser parser = Xml.newPullParser();
+        parser.setInput(new BufferedInputStream(new ByteArrayInputStream(data)), null);
+        parser.nextTag();
+        return xml.readFromXml(parser, MAX_VERSION, context, telephonyFeatureFlags);
+
     }
 
     private static void assertPhoneAccountHandleEquals(PhoneAccountHandle a, PhoneAccountHandle b) {
@@ -1895,6 +2162,12 @@ public class PhoneAccountRegistrarTest extends TelecomTestCase {
                 assertEquals(a.getSupportedUriSchemes(), b.getSupportedUriSchemes());
                 assertBundlesEqual(a.getExtras(), b.getExtras());
                 assertEquals(a.isEnabled(), b.isEnabled());
+                assertEquals(a.hasSimultaneousCallingRestriction(),
+                        b.hasSimultaneousCallingRestriction());
+                if (a.hasSimultaneousCallingRestriction()) {
+                    assertEquals(a.getSimultaneousCallingRestriction(),
+                            b.getSimultaneousCallingRestriction());
+                }
             } else {
                 fail("Phone accounts not equal: " + a + ", " + b);
             }

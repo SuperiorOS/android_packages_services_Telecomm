@@ -16,6 +16,8 @@
 
 package com.android.server.telecom.tests;
 
+import static com.android.server.telecom.tests.TelecomSystemTest.TEST_TIMEOUT;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -23,7 +25,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -46,6 +47,7 @@ import android.location.CountryListener;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
@@ -61,10 +63,10 @@ import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
 import android.telephony.CarrierConfigManager;
 import android.telephony.PhoneNumberUtils;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.test.suitebuilder.annotation.SmallTest;
 
 import androidx.test.filters.FlakyTest;
+import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Analytics;
 import com.android.server.telecom.AnomalyReporterAdapter;
@@ -89,6 +91,9 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 @RunWith(JUnit4.class)
 public class CallLogManagerTest extends TelecomTestCase {
@@ -864,35 +869,33 @@ public class CallLogManagerTest extends TelecomTestCase {
 
     @SmallTest
     @Test
-    public void testCountryIso_setCache() {
-        Country testCountry = new Country(TEST_ISO, Country.COUNTRY_SOURCE_LOCALE);
-        CountryDetector mockDetector = (CountryDetector) mContext.getSystemService(
-                Context.COUNTRY_DETECTOR);
-        when(mockDetector.detectCountry()).thenReturn(testCountry);
-
-        String resultIso = mCallLogManager.getCountryIso();
-
-        verifyCountryIso(mockDetector, resultIso);
-    }
-
-    @SmallTest
-    @Test
     public void testCountryIso_newCountryDetected() {
         Country testCountry = new Country(TEST_ISO, Country.COUNTRY_SOURCE_LOCALE);
         Country testCountry2 = new Country(TEST_ISO_2, Country.COUNTRY_SOURCE_LOCALE);
         CountryDetector mockDetector = (CountryDetector) mContext.getSystemService(
                 Context.COUNTRY_DETECTOR);
-        when(mockDetector.detectCountry()).thenReturn(testCountry);
-        // Put TEST_ISO in the Cache
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        String initialIso = mCallLogManager.getCountryIso();
+        assertEquals(Locale.getDefault().getCountry(), initialIso);
+
+        ArgumentCaptor<Consumer<Country>> capture = ArgumentCaptor.forClass(Consumer.class);
+        verify(mockDetector).registerCountryDetectorCallback(
+                any(Executor.class), capture.capture());
+        Consumer<Country> countryConsumer = capture.getValue();
+
+        countryConsumer.accept(testCountry);
+        waitForHandlerAction(handler, TEST_TIMEOUT);
         String resultIso = mCallLogManager.getCountryIso();
-        ArgumentCaptor<CountryListener> captor = verifyCountryIso(mockDetector, resultIso);
+        assertEquals(TEST_ISO, resultIso);
 
-        // Change ISO to TEST_ISO_2
-        CountryListener listener = captor.getValue();
-        listener.onCountryDetected(testCountry2);
-
-        String resultIso2 = mCallLogManager.getCountryIso();
-        assertEquals(TEST_ISO_2, resultIso2);
+        // If default locale is equal to TEST_ISO, test another ISO to assure working functionality.
+        if (initialIso.equals(TEST_ISO)) {
+            countryConsumer.accept(testCountry2);
+            waitForHandlerAction(handler, TEST_TIMEOUT);
+            resultIso = mCallLogManager.getCountryIso();
+            assertEquals(TEST_ISO_2, resultIso);
+        }
     }
 
     @SmallTest

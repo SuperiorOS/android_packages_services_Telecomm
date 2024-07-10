@@ -18,6 +18,7 @@ package com.android.server.telecom.tests;
 
 import static android.os.VibrationEffect.EFFECT_CLICK;
 import static android.provider.Settings.Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -58,7 +59,9 @@ import android.platform.test.flag.junit.CheckFlagsRule;
 import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.util.Pair;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.AsyncRingtonePlayer;
 import com.android.server.telecom.Call;
@@ -81,6 +84,7 @@ import org.mockito.Spy;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 @RunWith(JUnit4.class)
 public class RingerTest extends TelecomTestCase {
@@ -142,7 +146,6 @@ public class RingerTest extends TelecomTestCase {
         mockNotificationManager =mContext.getSystemService(NotificationManager.class);
         when(mockTonePlayer.startTone()).thenReturn(true);
         when(mockNotificationManager.matchesCallFilter(any(Uri.class))).thenReturn(true);
-        when(mockRingtoneFactory.hasHapticChannels(any(Ringtone.class))).thenReturn(false);
         when(mockCall1.getState()).thenReturn(CallState.RINGING);
         when(mockCall2.getState()).thenReturn(CallState.RINGING);
         when(mockCall1.getAssociatedUser()).thenReturn(PA_HANDLE.getUserHandle());
@@ -424,7 +427,7 @@ public class RingerTest extends TelecomTestCase {
         // Pretend we're using audio coupled haptics.
         setIsUsingHaptics(mockRingtone, true);
         assertTrue(startRingingAndWaitForAsync(mockCall1, false));
-        verify(mockRingtoneFactory, times(1))
+        verify(mockRingtoneFactory, atLeastOnce())
             .getRingtone(any(Call.class), nullable(VolumeShaper.Configuration.class), anyBoolean());
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockTonePlayer).stopTone();
@@ -466,14 +469,14 @@ public class RingerTest extends TelecomTestCase {
 
         mRingerUnderTest.startCallWaiting(mockCall1);
         when(mockRingtoneFactory.getRingtone(any(Call.class), eq(null), anyBoolean()))
-            .thenReturn(mockRingtone);
+            .thenReturn(new Pair(FAKE_RINGTONE_URI, mockRingtone));
         when(mockAudioManager.getRingerMode()).thenReturn(AudioManager.RINGER_MODE_VIBRATE);
         when(mockAudioManager.getStreamVolume(AudioManager.STREAM_RING)).thenReturn(0);
         enableVibrationWhenRinging();
         assertFalse(startRingingAndWaitForAsync(mockCall2, false));
         verify(mockTonePlayer).stopTone();
         // Try to play a silent haptics ringtone
-        verify(mockRingtoneFactory, times(1)).getHapticOnlyRingtone();
+        verify(mockRingtoneFactory, atLeastOnce()).getHapticOnlyRingtone();
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockRingtone).play();
 
@@ -512,7 +515,7 @@ public class RingerTest extends TelecomTestCase {
         enableVibrationWhenRinging();
         assertFalse(startRingingAndWaitForAsync(mockCall2, false));
 
-        verify(mockRingtoneFactory, times(1)).getHapticOnlyRingtone();
+        verify(mockRingtoneFactory, atLeastOnce()).getHapticOnlyRingtone();
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockTonePlayer).stopTone();
         // Try to play a silent haptics ringtone
@@ -532,7 +535,7 @@ public class RingerTest extends TelecomTestCase {
         enableVibrationWhenRinging();
         assertTrue(startRingingAndWaitForAsync(mockCall2, false));
         verify(mockTonePlayer).stopTone();
-        verify(mockRingtoneFactory, times(1))
+        verify(mockRingtoneFactory, atLeastOnce())
             .getRingtone(any(Call.class), isNull(), anyBoolean());
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockRingtone).play();
@@ -549,7 +552,7 @@ public class RingerTest extends TelecomTestCase {
         ensureRingerIsAudible();
         enableVibrationOnlyWhenNotRinging();
         assertTrue(startRingingAndWaitForAsync(mockCall2, false));
-        verify(mockRingtoneFactory, times(1))
+        verify(mockRingtoneFactory, atLeastOnce())
             .getRingtone(any(Call.class), nullable(VolumeShaper.Configuration.class), anyBoolean());
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockTonePlayer).stopTone();
@@ -568,7 +571,7 @@ public class RingerTest extends TelecomTestCase {
         enableRampingRinger();
         enableVibrationWhenRinging();
         assertTrue(startRingingAndWaitForAsync(mockCall2, false));
-        verify(mockRingtoneFactory, times(1))
+        verify(mockRingtoneFactory, atLeastOnce())
             .getRingtone(any(Call.class), nullable(VolumeShaper.Configuration.class), anyBoolean());
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockTonePlayer).stopTone();
@@ -600,7 +603,7 @@ public class RingerTest extends TelecomTestCase {
         when(mockAudioManager.getStreamVolume(AudioManager.STREAM_RING)).thenReturn(100);
         enableVibrationWhenRinging();
         assertTrue(startRingingAndWaitForAsync(mockCall2, true));
-        verify(mockRingtoneFactory, times(1))
+        verify(mockRingtoneFactory, atLeastOnce())
             .getRingtone(any(Call.class), isNull(), anyBoolean());
         verifyNoMoreInteractions(mockRingtoneFactory);
         verify(mockTonePlayer).stopTone();
@@ -621,7 +624,7 @@ public class RingerTest extends TelecomTestCase {
 
         asyncRingtonePlayer.updateBtActiveState(true);
         mRingCompletionFuture.get();
-        verify(mockRingtoneFactory, times(1))
+        verify(mockRingtoneFactory, atLeastOnce())
                 .getRingtone(any(Call.class), nullable(VolumeShaper.Configuration.class),
                         anyBoolean());
         verifyNoMoreInteractions(mockRingtoneFactory);
@@ -751,7 +754,7 @@ public class RingerTest extends TelecomTestCase {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
-                    return mockRingtone;
+                    return new Pair(FAKE_RINGTONE_URI, mockRingtone);
                 });
         // Start call waiting to make sure that it doesn't stop when we start ringing
         enableVibrationWhenRinging();
@@ -830,10 +833,12 @@ public class RingerTest extends TelecomTestCase {
 
     private Ringtone ensureRingtoneMocked() {
         Ringtone mockRingtone = mock(Ringtone.class);
+        Pair<Uri, Ringtone> ringtoneInfo = new Pair(
+                FAKE_RINGTONE_URI, mockRingtone);
         when(mockRingtoneFactory.getRingtone(
                 any(Call.class), nullable(VolumeShaper.Configuration.class), anyBoolean()))
-                .thenReturn(mockRingtone);
-        when(mockRingtoneFactory.getHapticOnlyRingtone()).thenReturn(mockRingtone);
+                .thenReturn(ringtoneInfo);
+        when(mockRingtoneFactory.getHapticOnlyRingtone()).thenReturn(ringtoneInfo);
         return mockRingtone;
     }
 

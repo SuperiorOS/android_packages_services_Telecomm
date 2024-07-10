@@ -25,8 +25,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,11 +47,11 @@ import android.telecom.VideoCallImpl;
 import android.telecom.VideoProfile;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
 import androidx.test.filters.FlakyTest;
+import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
 
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.server.telecom.Analytics;
@@ -87,6 +87,7 @@ public class AnalyticsTests extends TelecomSystemTest {
         super.setUp();
         // this is a mock
         mSubscriptionManager = mContext.getSystemService(SubscriptionManager.class);
+        when(mSubscriptionManager.createForAllUserProfiles()).thenReturn(mSubscriptionManager);
         when(mSubscriptionManager.getActiveSubscriptionInfoList())
                 .thenReturn(Collections.emptyList());
     }

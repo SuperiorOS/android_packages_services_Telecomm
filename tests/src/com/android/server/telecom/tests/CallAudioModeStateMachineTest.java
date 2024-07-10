@@ -18,6 +18,7 @@ package com.android.server.telecom.tests;
 
 import static com.android.server.telecom.CallAudioModeStateMachine.CALL_AUDIO_FOCUS_REQUEST;
 import static com.android.server.telecom.CallAudioModeStateMachine.RING_AUDIO_FOCUS_REQUEST;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -33,7 +34,8 @@ import static org.mockito.Mockito.when;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.os.HandlerThread;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.CallAudioCommunicationDeviceTracker;
 import com.android.server.telecom.CallAudioManager;

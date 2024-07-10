@@ -27,10 +27,10 @@ import android.telecom.Conference;
 import android.telecom.Connection;
 import android.telecom.InCallService;
 import android.telecom.ParcelableCall;
-import android.test.suitebuilder.annotation.LargeTest;
-import android.test.suitebuilder.annotation.MediumTest;
 
 import androidx.test.filters.FlakyTest;
+import androidx.test.filters.LargeTest;
+import androidx.test.filters.MediumTest;
 
 import org.junit.After;
 import org.junit.Before;

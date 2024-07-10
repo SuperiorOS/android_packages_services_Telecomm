@@ -16,6 +16,7 @@
 
 package com.android.server.telecom;
 
+import static android.provider.CallLog.AddCallParams.AddCallParametersBuilder.MAX_NUMBER_OF_CHARACTERS;
 import static android.provider.CallLog.Calls.BLOCK_REASON_NOT_BLOCKED;
 import static android.telephony.CarrierConfigManager.KEY_SUPPORT_IMS_CONFERENCE_EVENT_PACKAGE_BOOL;
 
@@ -31,6 +32,9 @@ import android.location.CountryDetector;
 import android.location.Location;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerExecutor;
 import android.os.Looper;
 import android.os.UserHandle;
 import android.os.PersistableBundle;
@@ -52,6 +56,7 @@ import android.util.Pair;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.telecom.callfiltering.CallFilteringResult;
 import com.android.server.telecom.flags.FeatureFlags;
+import com.android.server.telecom.flags.Flags;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -116,8 +121,10 @@ public final class CallLogManager extends CallsManagerListenerBase {
     private static final String CALL_TYPE = "callType";
     private static final String CALL_DURATION = "duration";
 
-    private Object mLock;
+    private final Object mLock = new Object();
+    private Country mCurrentCountry;
     private String mCurrentCountryIso;
+    private HandlerExecutor mCountryCodeExecutor;
 
     private final FeatureFlags mFeatureFlags;
 
@@ -130,7 +137,7 @@ public final class CallLogManager extends CallsManagerListenerBase {
         mPhoneAccountRegistrar = phoneAccountRegistrar;
         mMissedCallNotifier = missedCallNotifier;
         mAnomalyReporterAdapter = anomalyReporterAdapter;
-        mLock = new Object();
+        mCountryCodeExecutor = new HandlerExecutor(new Handler(Looper.getMainLooper()));
         mFeatureFlags = featureFlags;
     }
 
@@ -412,7 +419,25 @@ public final class CallLogManager extends CallsManagerListenerBase {
         paramBuilder.setCallType(callLogType);
         paramBuilder.setIsRead(call.isSelfManaged());
         paramBuilder.setMissedReason(call.getMissedReason());
-
+        if (mFeatureFlags.businessCallComposer() && call.getExtras() != null) {
+            Bundle extras = call.getExtras();
+            boolean isBusinessCall =
+                    extras.getBoolean(android.telecom.Call.EXTRA_IS_BUSINESS_CALL, false);
+            paramBuilder.setIsBusinessCall(isBusinessCall);
+            if (isBusinessCall) {
+                Log.i(TAG, "logging business call");
+                String assertedDisplayName =
+                        extras.getString(android.telecom.Call.EXTRA_ASSERTED_DISPLAY_NAME, "");
+                if (assertedDisplayName.length() > MAX_NUMBER_OF_CHARACTERS) {
+                    // avoid throwing an IllegalArgumentException and only log the first 256
+                    // characters of the name.
+                    paramBuilder.setAssertedDisplayName(
+                            assertedDisplayName.substring(0, MAX_NUMBER_OF_CHARACTERS));
+                } else {
+                    paramBuilder.setAssertedDisplayName(assertedDisplayName);
+                }
+            }
+        }
         sendAddCallBroadcast(callLogType, call.getAgeMillis());
 
         boolean okayToLog =
@@ -621,7 +646,7 @@ public final class CallLogManager extends CallsManagerListenerBase {
             return Locale.getDefault().getCountry();
         }
 
-        return country.getCountryIso();
+        return country.getCountryCode();
     }
 
     /**
@@ -632,31 +657,35 @@ public final class CallLogManager extends CallsManagerListenerBase {
     public String getCountryIso() {
         synchronized (mLock) {
             if (mCurrentCountryIso == null) {
-                Log.i(TAG, "Country cache is null. Detecting Country and Setting Cache...");
+                // Moving this into the constructor will pose issues if the service is not yet set
+                // up, causing a RemoteException to be thrown. Note that the callback is only
+                // registered if the country iso cache is null (so in an ideal setting, this should
+                // only require a one-time configuration).
                 final CountryDetector countryDetector =
                         (CountryDetector) mContext.getSystemService(Context.COUNTRY_DETECTOR);
-                Country country = null;
                 if (countryDetector != null) {
-                    country = countryDetector.detectCountry();
-
-                    countryDetector.addCountryListener((newCountry) -> {
-                        Log.startSession("CLM.oCD");
-                        try {
-                            synchronized (mLock) {
-                                Log.i(TAG, "Country ISO changed. Retrieving new ISO...");
-                                mCurrentCountryIso = getCountryIsoFromCountry(newCountry);
-                            }
-                        } finally {
-                            Log.endSession();
-                        }
-                    }, Looper.getMainLooper());
+                    countryDetector.registerCountryDetectorCallback(
+                            mCountryCodeExecutor, this::countryCodeConsumer);
                 }
-                mCurrentCountryIso = getCountryIsoFromCountry(country);
+                mCurrentCountryIso = getCountryIsoFromCountry(mCurrentCountry);
             }
             return mCurrentCountryIso;
         }
     }
 
+    /** Consumer to receive the country code if it changes. */
+    private void countryCodeConsumer(Country newCountry) {
+        Log.startSession("CLM.cCC");
+        try {
+            Log.i(TAG, "Country ISO changed. Retrieving new ISO...");
+            synchronized (mLock) {
+                mCurrentCountry = newCountry;
+                mCurrentCountryIso = getCountryIsoFromCountry(newCountry);
+            }
+        } finally {
+            Log.endSession();
+        }
+    }
 
     /**
      * Returns a pair containing the number of rows in the call log, as well as the maximum call log

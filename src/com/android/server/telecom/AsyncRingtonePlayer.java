@@ -26,6 +26,8 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.telecom.Log;
 import android.telecom.Logging.Session;
+import android.util.Pair;
+
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
 import com.android.internal.util.Preconditions;
@@ -81,16 +83,17 @@ public class AsyncRingtonePlayer {
      * If {@link VolumeShaper.Configuration} is specified, it is applied to the ringtone to change
      * the volume of the ringtone as it plays.
      *
-     * @param ringtoneSupplier The {@link Ringtone} factory.
+     * @param ringtoneInfoSupplier The {@link Ringtone} factory.
      * @param ringtoneConsumer The {@link Ringtone} post-creation callback (to start the vibration).
      * @param isHfpDeviceConnected True if there is a HFP BT device connected, false otherwise.
      */
-    public void play(@NonNull Supplier<Ringtone> ringtoneSupplier,
-            BiConsumer<Ringtone, Boolean> ringtoneConsumer,  boolean isHfpDeviceConnected) {
+    public void play(@NonNull Supplier<Pair<Uri, Ringtone>> ringtoneInfoSupplier,
+            BiConsumer<Pair<Uri, Ringtone>, Boolean> ringtoneConsumer,
+            boolean isHfpDeviceConnected) {
         Log.d(this, "Posting play.");
         mIsPlaying = true;
         SomeArgs args = SomeArgs.obtain();
-        args.arg1 = ringtoneSupplier;
+        args.arg1 = ringtoneInfoSupplier;
         args.arg2 = ringtoneConsumer;
         args.arg3 = Log.createSubsession();
         args.arg4 = prepareRingingReadyLatch(isHfpDeviceConnected);
@@ -209,8 +212,10 @@ public class AsyncRingtonePlayer {
      * Starts the actual playback of the ringtone. Executes on ringtone-thread.
      */
     private void handlePlay(SomeArgs args) {
-        Supplier<Ringtone> ringtoneSupplier = (Supplier<Ringtone>) args.arg1;
-        BiConsumer<Ringtone, Boolean> ringtoneConsumer = (BiConsumer<Ringtone, Boolean>) args.arg2;
+        Supplier<Pair<Uri, Ringtone>> ringtoneInfoSupplier =
+                (Supplier<Pair<Uri, Ringtone>>) args.arg1;
+        BiConsumer<Pair<Uri, Ringtone>, Boolean> ringtoneConsumer =
+                (BiConsumer<Pair<Uri, Ringtone>, Boolean>) args.arg2;
         Session session = (Session) args.arg3;
         CountDownLatch ringingReadyLatch = (CountDownLatch) args.arg4;
         args.recycle();
@@ -226,6 +231,7 @@ public class AsyncRingtonePlayer {
                 return;
             }
             Ringtone ringtone = null;
+            Uri ringtoneUri = null;
             boolean hasStopped = false;
             try {
                 try {
@@ -236,7 +242,11 @@ public class AsyncRingtonePlayer {
                 } catch (InterruptedException e) {
                     Log.w(this, "handlePlay: latch exception: " + e);
                 }
-                ringtone = ringtoneSupplier.get();
+                if (ringtoneInfoSupplier != null && ringtoneInfoSupplier.get() != null) {
+                    ringtoneUri = ringtoneInfoSupplier.get().first;
+                    ringtone = ringtoneInfoSupplier.get().second;
+                }
+
                 // Ringtone supply can be slow or stop command could have been issued while waiting
                 // for BT to move to CONNECTED state. Re-check for stop event.
                 if (mHandler.hasMessages(EVENT_STOP)) {
@@ -253,8 +263,7 @@ public class AsyncRingtonePlayer {
                     Log.w(this, "No ringtone was found bail out from playing.");
                     return;
                 }
-                Uri uri = mRingtone.getUri();
-                String uriString = (uri != null ? uri.toSafeString() : "");
+                String uriString = ringtoneUri != null ? ringtoneUri.toSafeString() : "";
                 Log.i(this, "handlePlay: Play ringtone. Uri: " + uriString);
                 mRingtone.setLooping(true);
                 if (mRingtone.isPlaying()) {
@@ -265,7 +274,7 @@ public class AsyncRingtonePlayer {
                 Log.i(this, "Play ringtone, looping.");
             } finally {
                 removePendingRingingReadyLatch(ringingReadyLatch);
-                ringtoneConsumer.accept(ringtone, hasStopped);
+                ringtoneConsumer.accept(new Pair(ringtoneUri, ringtone), hasStopped);
             }
         } finally {
             Log.cancelSubsession(session);

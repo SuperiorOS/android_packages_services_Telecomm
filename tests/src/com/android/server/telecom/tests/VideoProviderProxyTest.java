@@ -26,7 +26,8 @@ import static org.mockito.Mockito.when;
 
 import android.os.IBinder;
 import android.telecom.VideoProfile;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.internal.telecom.IVideoProvider;
 import com.android.server.telecom.Analytics;

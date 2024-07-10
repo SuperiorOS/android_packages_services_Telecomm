@@ -17,11 +17,11 @@
 package com.android.server.telecom.tests;
 
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
@@ -32,11 +32,10 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.os.Handler;
 import android.os.Looper;
-import android.test.suitebuilder.annotation.SmallTest;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.ContactsAsyncHelper;
 
@@ -49,7 +48,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.util.concurrent.Executor;
 
 @RunWith(JUnit4.class)
 public class ContactsAsyncHelperTest extends TelecomTestCase {

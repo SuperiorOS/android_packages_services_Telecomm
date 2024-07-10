@@ -23,6 +23,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.UiModeManager;
 import android.app.role.RoleManager;
+import android.content.Context;
 import android.content.Intent;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
@@ -190,7 +191,7 @@ public class SelfManagedCallingActivity extends Activity {
     }
 
     private void placeOutgoingCall() {
-        TelecomManager tm = TelecomManager.from(this);
+        TelecomManager tm = this.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccountHandle = getSelectedPhoneAccountHandle();
 
         if (mCheckIfPermittedBeforeCalling.isChecked()) {
@@ -215,7 +216,7 @@ public class SelfManagedCallingActivity extends Activity {
     }
 
     private void placeSelfManagedOutgoingCall() {
-        TelecomManager tm = TelecomManager.from(this);
+        TelecomManager tm = this.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccountHandle = getSelectedPhoneAccountHandle();
 
         if (mCheckIfPermittedBeforeCalling.isChecked()) {
@@ -233,14 +234,14 @@ public class SelfManagedCallingActivity extends Activity {
     }
 
     private void initiateHandover() {
-        TelecomManager tm = TelecomManager.from(this);
+        TelecomManager tm = this.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccountHandle = getSelectedPhoneAccountHandle();
         Uri address = Uri.parse(mNumber.getText().toString());
         tm.acceptHandover(address, VideoProfile.STATE_BIDIRECTIONAL, phoneAccountHandle);
     }
 
     private void placeIncomingCall() {
-        TelecomManager tm = TelecomManager.from(this);
+        TelecomManager tm = this.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccountHandle = getSelectedPhoneAccountHandle();
 
         if (mCheckIfPermittedBeforeCalling.isChecked()) {
@@ -263,7 +264,7 @@ public class SelfManagedCallingActivity extends Activity {
     }
 
     private void placeSelfManagedIncomingCall() {
-        TelecomManager tm = TelecomManager.from(this);
+        TelecomManager tm = this.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccountHandle = mCallList.getPhoneAccountHandle(
                 SelfManagedCallList.SELF_MANAGED_ACCOUNT_1A);
 

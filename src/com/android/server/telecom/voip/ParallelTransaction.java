@@ -34,6 +34,7 @@ public class ParallelTransaction extends VoipCallTransaction {
 
     @Override
     public void start() {
+        if (mStats != null) mStats.markStarted();
         // post timeout work
         CompletableFuture<Void> future = new CompletableFuture<>();
         mHandler.postDelayed(() -> future.complete(null), TIMEOUT_LIMIT);
@@ -44,7 +45,7 @@ public class ParallelTransaction extends VoipCallTransaction {
             if (mCompleteListener != null) {
                 mCompleteListener.onTransactionTimeout(mTransactionName);
             }
-            finish();
+            timeout();
             return null;
         }, new LoggedHandlerExecutor(mHandler, mTransactionName + "@" + hashCode()
                 + ".s", mLock));
@@ -68,7 +69,7 @@ public class ParallelTransaction extends VoipCallTransaction {
                                                                     transactionName));
                                             mCompleteListener.onTransactionCompleted(mainResult,
                                                     mTransactionName);
-                                            finish();
+                                            finish(mainResult);
                                             return null;
                                         }, new LoggedHandlerExecutor(mHandler,
                                                 mTransactionName + "@" + hashCode()
@@ -91,7 +92,7 @@ public class ParallelTransaction extends VoipCallTransaction {
                                                         transactionName));
                                         mCompleteListener.onTransactionCompleted(mainResult,
                                                 mTransactionName);
-                                        finish();
+                                        finish(mainResult);
                                         return null;
                                     }, new LoggedHandlerExecutor(mHandler,
                                             mTransactionName + "@" + hashCode()

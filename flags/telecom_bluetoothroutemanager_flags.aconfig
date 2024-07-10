@@ -1,4 +1,5 @@
 package: "com.android.server.telecom.flags"
+container: "system"
 
 flag {
   name: "use_actual_address_to_enter_connecting_state"

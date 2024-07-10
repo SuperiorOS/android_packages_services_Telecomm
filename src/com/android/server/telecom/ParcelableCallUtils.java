@@ -63,6 +63,7 @@ public class ParcelableCallUtils {
         RESTRICTED_CALL_SCREENING_EXTRA_KEYS = new ArrayList<>();
         RESTRICTED_CALL_SCREENING_EXTRA_KEYS.add(android.telecom.Connection.EXTRA_SIP_INVITE);
         RESTRICTED_CALL_SCREENING_EXTRA_KEYS.add(ImsCallProfile.EXTRA_IS_BUSINESS_CALL);
+        RESTRICTED_CALL_SCREENING_EXTRA_KEYS.add(ImsCallProfile.EXTRA_ASSERTED_DISPLAY_NAME);
     }
 
     public static class Converter {

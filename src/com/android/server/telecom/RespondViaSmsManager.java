@@ -27,7 +27,6 @@ import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.telecom.Connection;
 import android.telecom.Log;
-import android.telecom.Response;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionManager;
@@ -92,7 +91,7 @@ public class RespondViaSmsManager extends CallsManagerListenerBase {
      *                 the main thread.
      * @param context The context.
      */
-    public void loadCannedTextMessages(final Response<Void, List<String>> response,
+    public void loadCannedTextMessages(final CallsManager.Response<Void, List<String>> response,
             final Context context) {
         new Thread() {
             @Override

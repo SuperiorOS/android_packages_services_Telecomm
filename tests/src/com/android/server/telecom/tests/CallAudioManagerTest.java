@@ -16,22 +16,40 @@
 
 package com.android.server.telecom.tests;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import android.media.ToneGenerator;
 import android.telecom.DisconnectCause;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 
+import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
+
 import com.android.server.telecom.Call;
+import com.android.server.telecom.CallAudioManager;
 import com.android.server.telecom.CallAudioModeStateMachine;
 import com.android.server.telecom.CallAudioModeStateMachine.MessageArgs;
+import com.android.server.telecom.CallAudioModeStateMachine.MessageArgs.Builder;
 import com.android.server.telecom.CallAudioRouteStateMachine;
 import com.android.server.telecom.CallState;
 import com.android.server.telecom.CallsManager;
-import com.android.server.telecom.CallAudioManager;
 import com.android.server.telecom.DtmfLocalTonePlayer;
 import com.android.server.telecom.InCallTonePlayer;
-import com.android.server.telecom.CallAudioModeStateMachine.MessageArgs.Builder;
 import com.android.server.telecom.RingbackPlayer;
 import com.android.server.telecom.Ringer;
 import com.android.server.telecom.TelecomSystem;
@@ -50,23 +68,6 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @RunWith(JUnit4.class)
 public class CallAudioManagerTest extends TelecomTestCase {

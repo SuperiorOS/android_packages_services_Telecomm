@@ -16,7 +16,6 @@
 
 package com.android.server.telecom.tests;
 
-import static android.app.ForegroundServiceDelegationOptions.DELEGATION_SERVICE_PHONE_CALL;
 import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
 import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
 import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
@@ -44,7 +43,8 @@ import android.os.IBinder;
 import android.os.UserHandle;
 import android.service.notification.StatusBarNotification;
 import android.telecom.PhoneAccountHandle;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallState;

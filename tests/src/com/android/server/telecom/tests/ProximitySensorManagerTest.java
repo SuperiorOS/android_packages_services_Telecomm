@@ -16,8 +16,14 @@
 
 package com.android.server.telecom.tests;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import android.os.PowerManager;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallsManager;
@@ -32,11 +38,6 @@ import org.junit.runners.JUnit4;
 import org.mockito.Mock;
 
 import java.util.List;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @RunWith(JUnit4.class)
 public class ProximitySensorManagerTest extends TelecomTestCase{

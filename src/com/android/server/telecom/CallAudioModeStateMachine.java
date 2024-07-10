@@ -280,7 +280,10 @@ public class CallAudioModeStateMachine extends StateMachine {
             mLocalLog.log("Enter UNFOCUSED");
             if (mIsInitialized) {
                 // Clear any communication device that was requested previously.
-                if (mFeatureFlags.callAudioCommunicationDeviceRefactor()) {
+                // Todo: Remove once clearCommunicationDeviceAfterAudioOpsComplete is
+                // completely rolled out.
+                if (mFeatureFlags.callAudioCommunicationDeviceRefactor()
+                        && !mFeatureFlags.clearCommunicationDeviceAfterAudioOpsComplete()) {
                     mCommunicationDeviceTracker.clearCommunicationDevice(mCommunicationDeviceTracker
                             .getCurrentLocallyRequestedCommunicationDevice());
                 }
@@ -352,6 +355,12 @@ public class CallAudioModeStateMachine extends StateMachine {
                         }
                     } else {
                         mAudioManager.abandonAudioFocusForCall();
+                    }
+                    // Clear requested communication device after the call ends.
+                    if (mFeatureFlags.clearCommunicationDeviceAfterAudioOpsComplete()) {
+                        mCommunicationDeviceTracker.clearCommunicationDevice(
+                                mCommunicationDeviceTracker
+                                        .getCurrentLocallyRequestedCommunicationDevice());
                     }
                     return HANDLED;
                 default:

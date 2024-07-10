@@ -73,15 +73,15 @@ import android.os.PersistableBundle;
 import android.os.Process;
 import android.os.ResultReceiver;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.SystemVibrator;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.BlockedNumberContract;
-import android.provider.BlockedNumberContract.SystemContract;
+import android.provider.BlockedNumberContract.BlockedNumbers;
 import android.provider.CallLog.Calls;
 import android.provider.Settings;
-import android.sysprop.TelephonyProperties;
 import android.telecom.CallAttributes;
 import android.telecom.CallAudioState;
 import android.telecom.CallEndpoint;
@@ -117,6 +117,7 @@ import android.widget.Button;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IntentForwarderActivity;
 import com.android.internal.util.IndentingPrintWriter;
+import com.android.server.telecom.bluetooth.BluetoothDeviceManager;
 import com.android.server.telecom.bluetooth.BluetoothRouteManager;
 import com.android.server.telecom.bluetooth.BluetoothStateReceiver;
 import com.android.server.telecom.callfiltering.BlockCheckerAdapter;
@@ -222,6 +223,29 @@ public class CallsManager extends Call.ListenerBase
     /** Interface used to define the action which is executed delay under some condition. */
     interface PendingAction {
         void performAction();
+    }
+
+    /**
+     * @hide
+     */
+    public interface Response<IN, OUT> {
+
+        /**
+         * Provide a set of results.
+         *
+         * @param request The original request.
+         * @param result The results.
+         */
+        void onResult(IN request, OUT... result);
+
+        /**
+         * Indicates the inability to provide results.
+         *
+         * @param request The original request.
+         * @param code An integer code indicating the reason for failure.
+         * @param msg A message explaining the reason for failure.
+         */
+        void onError(IN request, int code, String msg);
     }
 
     private static final String TAG = "CallsManager";
@@ -465,6 +489,7 @@ public class CallsManager extends Call.ListenerBase
     private final UserManager mUserManager;
     private final CallStreamingNotification mCallStreamingNotification;
     private final FeatureFlags mFeatureFlags;
+    private final com.android.internal.telephony.flags.FeatureFlags mTelephonyFeatureFlags;
 
     private final IncomingCallFilterGraphProvider mIncomingCallFilterGraphProvider;
 
@@ -531,7 +556,7 @@ public class CallsManager extends Call.ListenerBase
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED.equals(action)
-                    || SystemContract.ACTION_BLOCK_SUPPRESSION_STATE_CHANGED.equals(action)) {
+                    || BlockedNumbers.ACTION_BLOCK_SUPPRESSION_STATE_CHANGED.equals(action)) {
                 updateEmergencyCallNotificationAsync(context);
             }
         }
@@ -582,7 +607,9 @@ public class CallsManager extends Call.ListenerBase
             EmergencyCallDiagnosticLogger emergencyCallDiagnosticLogger,
             CallAudioCommunicationDeviceTracker communicationDeviceTracker,
             CallStreamingNotification callStreamingNotification,
+            BluetoothDeviceManager bluetoothDeviceManager,
             FeatureFlags featureFlags,
+            com.android.internal.telephony.flags.FeatureFlags telephonyFlags,
             IncomingCallFilterGraphProvider incomingCallFilterGraphProvider) {
 
         mContext = context;
@@ -607,6 +634,9 @@ public class CallsManager extends Call.ListenerBase
         mDtmfLocalTonePlayer =
                 new DtmfLocalTonePlayer(new DtmfLocalTonePlayer.ToneGeneratorProxy());
         CallAudioRouteAdapter callAudioRouteAdapter;
+        // TODO: add another flag check when
+        // bluetoothDeviceManager.getBluetoothHeadset().isScoManagedByAudio()
+        // available and return true
         if (!featureFlags.useRefactoredAudioRouteSwitching()) {
             callAudioRouteAdapter = callAudioRouteStateMachineFactory.create(
                     context,
@@ -621,9 +651,11 @@ public class CallsManager extends Call.ListenerBase
                     featureFlags
             );
         } else {
-            callAudioRouteAdapter = new CallAudioRouteController();
+            callAudioRouteAdapter = new CallAudioRouteController(context, this, audioServiceFactory,
+                    new AudioRoute.Factory(), wiredHeadsetManager, mBluetoothRouteManager);
         }
         callAudioRouteAdapter.initialize();
+        bluetoothStateReceiver.setCallAudioRouteAdapter(callAudioRouteAdapter);
 
         CallAudioRoutePeripheralAdapter callAudioRoutePeripheralAdapter =
                 new CallAudioRoutePeripheralAdapter(
@@ -673,7 +705,8 @@ public class CallsManager extends Call.ListenerBase
         mCallLogManager = new CallLogManager(context, phoneAccountRegistrar, mMissedCallNotifier,
                 mAnomalyReporter, featureFlags);
         mConnectionServiceRepository =
-                new ConnectionServiceRepository(mPhoneAccountRegistrar, mContext, mLock, this);
+                new ConnectionServiceRepository(mPhoneAccountRegistrar, mContext, mLock, this,
+                        featureFlags);
         mInCallWakeLockController = inCallWakeLockControllerFactory.create(context, this);
         mClockProxy = clockProxy;
         mToastFactory = toastFactory;
@@ -684,6 +717,7 @@ public class CallsManager extends Call.ListenerBase
         mCallStreamingController = new CallStreamingController(mContext, mLock);
         mCallStreamingNotification = callStreamingNotification;
         mFeatureFlags = featureFlags;
+        mTelephonyFeatureFlags = telephonyFlags;
 
         if (mFeatureFlags.useImprovedListenerOrder()) {
             mListeners.add(mInCallController);
@@ -724,7 +758,7 @@ public class CallsManager extends Call.ListenerBase
         IntentFilter intentFilter = new IntentFilter(
                 CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED);
         intentFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
-        intentFilter.addAction(SystemContract.ACTION_BLOCK_SUPPRESSION_STATE_CHANGED);
+        intentFilter.addAction(BlockedNumbers.ACTION_BLOCK_SUPPRESSION_STATE_CHANGED);
         context.registerReceiver(mReceiver, intentFilter, Context.RECEIVER_EXPORTED);
         mGraphHandlerThreads = new LinkedList<>();
 
@@ -862,11 +896,11 @@ public class CallsManager extends Call.ListenerBase
     }
 
     private IncomingCallFilterGraph setUpCallFilterGraph(Call incomingCall) {
+        TelecomManager telecomManager = mContext.getSystemService(TelecomManager.class);
         incomingCall.setIsUsingCallFiltering(true);
         String carrierPackageName = getCarrierPackageName();
         UserHandle userHandle = incomingCall.getAssociatedUser();
-        String defaultDialerPackageName = TelecomManager.from(mContext).
-                getDefaultDialerPackage(userHandle);
+        String defaultDialerPackageName = telecomManager.getDefaultDialerPackage(userHandle);
         String userChosenPackageName = getRoleManagerAdapter().
                 getDefaultCallScreeningApp(userHandle);
         AppLabelProxy appLabelProxy = packageName -> AppLabelProxy.Util.getAppLabel(
@@ -938,8 +972,10 @@ public class CallsManager extends Call.ListenerBase
 
         if (incomingCall.getState() != CallState.DISCONNECTED &&
                 incomingCall.getState() != CallState.DISCONNECTING) {
-            setCallState(incomingCall, CallState.RINGING,
-                    result.shouldAllowCall ? "successful incoming call" : "blocking call");
+            if (!mFeatureFlags.separatelyBindToBtIncallService()) {
+                setCallState(incomingCall, CallState.RINGING,
+                        result.shouldAllowCall ? "successful incoming call" : "blocking call");
+            }
         } else {
             Log.i(this, "onCallFilteringCompleted: call already disconnected.");
             return;
@@ -984,6 +1020,10 @@ public class CallsManager extends Call.ListenerBase
         }
 
         if (result.shouldAllowCall) {
+            if (mFeatureFlags.separatelyBindToBtIncallService()) {
+                incomingCall.setBtIcsFuture(mInCallController.bindToBTService(incomingCall));
+                setCallState(incomingCall, CallState.RINGING, "successful incoming call");
+            }
             incomingCall.setPostCallPackageName(
                     getRoleManagerAdapter().getDefaultCallScreeningApp(
                             incomingCall.getAssociatedUser()
@@ -998,7 +1038,6 @@ public class CallsManager extends Call.ListenerBase
                             "Exceeds maximum number of ringing calls.");
                     incomingCall.setMissedReason(AUTO_MISSED_MAXIMUM_RINGING);
                     autoMissCallAndLog(incomingCall, result);
-                    return;
                 }
             } else if (hasMaximumManagedDialingCalls(incomingCall)) {
                 if (shouldSilenceInsteadOfReject(incomingCall)) {
@@ -1008,7 +1047,6 @@ public class CallsManager extends Call.ListenerBase
                             "dialing calls.");
                     incomingCall.setMissedReason(AUTO_MISSED_MAXIMUM_DIALING);
                     autoMissCallAndLog(incomingCall, result);
-                    return;
                 }
             } else if (result.shouldScreenViaAudio) {
                 Log.i(this, "onCallFilteringCompleted: starting background audio processing");
@@ -1027,6 +1065,9 @@ public class CallsManager extends Call.ListenerBase
         } else {
             if (result.shouldReject) {
                 Log.i(this, "onCallFilteringCompleted: blocked call, rejecting.");
+                if (mFeatureFlags.separatelyBindToBtIncallService()) {
+                    setCallState(incomingCall, CallState.RINGING, "blocking call");
+                }
                 incomingCall.reject(false, null);
             }
             if (result.shouldAddToCallLog) {
@@ -1298,9 +1339,7 @@ public class CallsManager extends Call.ListenerBase
     @Override
     public void onHandoverRequested(Call call, PhoneAccountHandle handoverTo, int videoState,
                                     Bundle extras, boolean isLegacy) {
-        if (isLegacy) {
-            requestHandoverViaEvents(call, handoverTo, videoState, extras);
-        } else {
+        if (!isLegacy) {
             requestHandover(call, handoverTo, videoState, extras);
         }
     }
@@ -2894,7 +2933,7 @@ public class CallsManager extends Call.ListenerBase
 
         if (call.isEmergencyCall()) {
             Executors.defaultThreadFactory().newThread(() ->
-                    BlockedNumberContract.SystemContract.notifyEmergencyContact(mContext))
+                    BlockedNumberContract.BlockedNumbers.notifyEmergencyContact(mContext))
                     .start();
         }
 
@@ -2978,10 +3017,6 @@ public class CallsManager extends Call.ListenerBase
                 Log.d(this, "answerCall: Incoming call = %s Ongoing call %s", call, activeCall);
             }
             // Hold or disconnect the active call and request call focus for the incoming call.
-            Bundle bundle = new Bundle();
-            bundle.putLong(TelecomManager.EXTRA_CALL_ANSWERED_TIME_MILLIS,
-                     mClockProxy.currentTimeMillis());
-            call.putConnectionServiceExtras(bundle);
             holdActiveCallForNewCall(call);
             mConnectionSvrFocusMgr.requestFocus(
                     call,
@@ -3133,9 +3168,8 @@ public class CallsManager extends Call.ListenerBase
      * @return {@code true} if the speakerphone should automatically be enabled.
      */
     private static boolean isSpeakerEnabledForVideoCalls() {
-        return TelephonyProperties.videocall_audio_output()
-                .orElse(TelecomManager.AUDIO_OUTPUT_DEFAULT)
-                == TelecomManager.AUDIO_OUTPUT_ENABLE_SPEAKER;
+        return SystemProperties.getInt(TelecomManager.PROPERTY_VIDEOCALL_AUDIO_OUTPUT,
+                TelecomManager.AUDIO_OUTPUT_DEFAULT) == TelecomManager.AUDIO_OUTPUT_ENABLE_SPEAKER;
     }
 
     /**
@@ -3395,8 +3429,14 @@ public class CallsManager extends Call.ListenerBase
     // then include only that SIM based PhoneAccount and any non-SIM PhoneAccounts, such as SIP.
     @VisibleForTesting
     public List<PhoneAccountHandle> constructPossiblePhoneAccounts(Uri handle, UserHandle user,
-            boolean isVideo, boolean isEmergency) {
-        return constructPossiblePhoneAccounts(handle, user, isVideo, isEmergency, false);
+            boolean isVideo, boolean isEmergency,  boolean isConference) {
+        if (mTelephonyFeatureFlags.simultaneousCallingIndications()) {
+            return constructPossiblePhoneAccountsNew(handle, user, isVideo, isEmergency,
+                    isConference);
+        } else {
+            return constructPossiblePhoneAccountsOld(handle, user, isVideo, isEmergency,
+                    isConference);
+        }
     }
 
     // Returns whether the device is capable of 2 simultaneous active voice calls on different subs.
@@ -3411,7 +3451,7 @@ public class CallsManager extends Call.ListenerBase
         }
     }
 
-    public List<PhoneAccountHandle> constructPossiblePhoneAccounts(Uri handle, UserHandle user,
+    private List<PhoneAccountHandle> constructPossiblePhoneAccountsOld(Uri handle, UserHandle user,
             boolean isVideo, boolean isEmergency, boolean isConference) {
 
         if (handle == null) {
@@ -3448,6 +3488,82 @@ public class CallsManager extends Call.ListenerBase
                 simAccounts.remove(ongoingCallAccount);
                 allAccounts.removeAll(simAccounts);
             }
+        }
+        return allAccounts;
+    }
+
+    /**
+     * Filters the list of all PhoneAccounts that match the outgoing call Handle's schema against
+     * the outgoing call request criteria and the state of the already ongoing calls on the
+     * device and their potential simultaneous calling restrictions.
+     * @return The filtered List
+     */
+    private List<PhoneAccountHandle> constructPossiblePhoneAccountsNew(Uri handle, UserHandle user,
+            boolean isVideo, boolean isEmergency, boolean isConference) {
+        if (handle == null) {
+            return Collections.emptyList();
+        }
+        // If we're specifically looking for video capable accounts, then include that capability,
+        // otherwise specify no additional capability constraints. When handling the emergency call,
+        // it also needs to find the phone accounts excluded by CAPABILITY_EMERGENCY_CALLS_ONLY.
+        int capabilities = isVideo ? PhoneAccount.CAPABILITY_VIDEO_CALLING : 0;
+        capabilities |= isConference ? PhoneAccount.CAPABILITY_ADHOC_CONFERENCE_CALLING : 0;
+        List<PhoneAccountHandle> allAccounts =
+                mPhoneAccountRegistrar.getCallCapablePhoneAccounts(handle.getScheme(), false, user,
+                        capabilities,
+                        isEmergency ? 0 : PhoneAccount.CAPABILITY_EMERGENCY_CALLS_ONLY,
+                        isEmergency);
+        Log.v(this, "constructPossiblePhoneAccountsNew: allAccounts=" + allAccounts);
+        Set<PhoneAccountHandle> activeCallAccounts = mCalls.stream()
+                .filter(c -> !c.isDisconnected() && !c.isNew()).map(Call::getTargetPhoneAccount)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Log.v(this, "constructPossiblePhoneAccountsNew: activeCallAccounts="
+                + activeCallAccounts);
+        // No Active calls - all accounts are valid
+        if (activeCallAccounts.isEmpty()) return allAccounts;
+        // The emergency call should be attempted only over the same SIM PhoneAccounts where there
+        // are already ongoing calls - filter out inactive SIM PhoneAccounts in this case.
+        if (isEmergency) {
+            Set<PhoneAccountHandle> simAccounts =
+                    new HashSet<>(mPhoneAccountRegistrar.getSimPhoneAccountsOfCurrentUser());
+            if (activeCallAccounts.stream().anyMatch(simAccounts::contains)) {
+                allAccounts.removeIf(h -> {
+                    boolean isRemoved = simAccounts.contains(h) && !activeCallAccounts.contains(h);
+                    if (isRemoved) {
+                        Log.i(this, "constructPossiblePhoneAccountsNew: removing candidate PAH ["
+                                + h + "] because another SIM account is active with an emergency "
+                                + "call");
+                    }
+                    return isRemoved;
+                });
+            }
+        }
+        // Apply restrictions to which PhoneAccounts can be used to place a call by looking at
+        // active calls and removing candidate PhoneAccounts if they are from the same source
+        // as the active call and the candidate PhoneAccount is not part of the restriction.
+        for (PhoneAccountHandle callHandle : activeCallAccounts) {
+            allAccounts.removeIf(candidateHandle -> {
+                PhoneAccount callAcct = mPhoneAccountRegistrar.getPhoneAccount(callHandle,
+                        user);
+                if (callAcct == null) {
+                    Log.w(this, "constructPossiblePhoneAccountsNew: unexpected"
+                            + "null PA for PAH, removing : " + candidateHandle);
+                    return true;
+                }
+                boolean isRemoved = !Objects.equals(candidateHandle, callHandle)
+                        && Objects.equals(candidateHandle.getComponentName(),
+                                callHandle.getComponentName())
+                        && callAcct.hasSimultaneousCallingRestriction()
+                        && !callAcct.getSimultaneousCallingRestriction().contains(candidateHandle);
+                if (isRemoved) {
+                    Log.i(this, "constructPossiblePhoneAccountsNew: removing candidate"
+                            + " PAH [" + candidateHandle + "] because it is not part of the"
+                            + " restriction set by [" + callHandle + "], restriction="
+                            + callAcct.getSimultaneousCallingRestriction());
+                }
+                return isRemoved;
+            });
         }
         return allAccounts;
     }
@@ -3502,7 +3618,7 @@ public class CallsManager extends Call.ListenerBase
     }
 
     /** Called by the in-call UI to change the mute state. */
-    void mute(boolean shouldMute) {
+    public void mute(boolean shouldMute) {
         if (isInEmergencyCall() && shouldMute) {
             Log.i(this, "Refusing to turn on mute because we're in an emergency call");
             shouldMute = false;
@@ -4557,10 +4673,6 @@ public class CallsManager extends Call.ListenerBase
             if (handoverState == HandoverState.HANDOVER_FROM_STARTED) {
                 // Disconnect before handover was accepted.
                 Log.i(this, "setCallState: disconnect before handover accepted");
-                // Let the handover destination know that the source has disconnected prior to
-                // completion of the handover.
-                call.getHandoverDestinationCall().sendCallEvent(
-                        android.telecom.Call.EVENT_HANDOVER_SOURCE_DISCONNECTED, null);
             } else if (handoverState == HandoverState.HANDOVER_ACCEPTED) {
                 Log.i(this, "setCallState: handover from complete");
                 completeHandoverFrom(call);
@@ -4578,11 +4690,9 @@ public class CallsManager extends Call.ListenerBase
         // Inform the "from" Call (ie the source call) that the handover from it has
         // completed; this allows the InCallService to be notified that a handover it
         // initiated completed.
-        call.onConnectionEvent(Connection.EVENT_HANDOVER_COMPLETE, null);
         call.onHandoverComplete();
 
         // Inform the "to" ConnectionService that handover to it has completed.
-        handoverTo.sendCallEvent(android.telecom.Call.EVENT_HANDOVER_COMPLETE, null);
         handoverTo.onHandoverComplete();
         answerCall(handoverTo, handoverTo.getVideoState());
         call.markFinishedHandoverStateAndCleanup(HandoverState.HANDOVER_COMPLETE);
@@ -4605,7 +4715,6 @@ public class CallsManager extends Call.ListenerBase
         // Inform the "from" Call (ie the source call) that the handover from it has
         // failed; this allows the InCallService to be notified that a handover it
         // initiated failed.
-        handoverFrom.onConnectionEvent(Connection.EVENT_HANDOVER_FAILED, null);
         handoverFrom.onHandoverFailed(android.telecom.Call.Callback.HANDOVER_FAILURE_USER_REJECTED);
 
         // Inform the "to" ConnectionService that handover to it has failed.  This
@@ -4614,7 +4723,6 @@ public class CallsManager extends Call.ListenerBase
             // Only attempt if the call has a bound ConnectionService if handover failed
             // early on in the handover process, the CS will be unbound and we won't be
             // able to send the call event.
-            handoverTo.sendCallEvent(android.telecom.Call.EVENT_HANDOVER_FAILED, null);
             handoverTo.getConnectionService().handoverFailed(handoverTo,
                     android.telecom.Call.Callback.HANDOVER_FAILURE_USER_REJECTED);
         }
@@ -4660,18 +4768,35 @@ public class CallsManager extends Call.ListenerBase
     }
 
     /**
-     * Determines if there are any ongoing self managed calls for the given package/user.
+     * Determines if there are any ongoing self-managed calls for the given package/user.
      * @param packageName The package name to check.
-     * @param userHandle The userhandle to check.
+     * @param userHandle The {@link UserHandle} to check.
      * @return {@code true} if the app has ongoing calls, or {@code false} otherwise.
      */
     public boolean isInSelfManagedCall(String packageName, UserHandle userHandle) {
+        return isInSelfManagedCallCrossUsers(packageName, userHandle, false);
+    }
+
+    /**
+     * Determines if there are any ongoing self-managed calls for the given package/user (unless
+     * hasCrossUsers has been enabled).
+     * @param packageName The package name to check.
+     * @param userHandle The {@link UserHandle} to check.
+     * @param hasCrossUserAccess indicates if calls across all users should be returned.
+     * @return {@code true} if the app has ongoing calls, or {@code false} otherwise.
+     */
+    public boolean isInSelfManagedCallCrossUsers(
+            String packageName, UserHandle userHandle, boolean hasCrossUserAccess) {
         return mSelfManagedCallsBeingSetup.stream().anyMatch(c -> c.isSelfManaged()
                 && c.getTargetPhoneAccount().getComponentName().getPackageName().equals(packageName)
-                && c.getTargetPhoneAccount().getUserHandle().equals(userHandle)) ||
-                mCalls.stream().anyMatch(c -> c.isSelfManaged()
+                && (!hasCrossUserAccess
+                        ? c.getTargetPhoneAccount().getUserHandle().equals(userHandle)
+                        : true))
+                || mCalls.stream().anyMatch(c -> c.isSelfManaged()
                 && c.getTargetPhoneAccount().getComponentName().getPackageName().equals(packageName)
-                && c.getTargetPhoneAccount().getUserHandle().equals(userHandle));
+                && (!hasCrossUserAccess
+                        ? c.getTargetPhoneAccount().getUserHandle().equals(userHandle)
+                        : true));
     }
 
     @VisibleForTesting
@@ -5844,8 +5969,7 @@ public class CallsManager extends Call.ListenerBase
             return;
         }
         ConnectionServiceWrapper service = mConnectionServiceRepository.getService(
-                phoneAccountHandle.getComponentName(), phoneAccountHandle.getUserHandle(),
-                mFeatureFlags);
+                phoneAccountHandle.getComponentName(), phoneAccountHandle.getUserHandle());
         if (service == null) {
             Log.i(this, "Found no connection service.");
             return;
@@ -5870,8 +5994,7 @@ public class CallsManager extends Call.ListenerBase
             return;
         }
         ConnectionServiceWrapper service = mConnectionServiceRepository.getService(
-                phoneAccountHandle.getComponentName(), phoneAccountHandle.getUserHandle(),
-                mFeatureFlags);
+                phoneAccountHandle.getComponentName(), phoneAccountHandle.getUserHandle());
         if (service == null) {
             Log.i(this, "Found no connection service.");
             return;
@@ -5905,28 +6028,6 @@ public class CallsManager extends Call.ListenerBase
         service.handoverFailed(call, reason);
         call.setDisconnectCause(new DisconnectCause(DisconnectCause.CANCELED));
         call.disconnect("handover failed");
-    }
-
-    /**
-     * Called in response to a {@link Call} receiving a {@link Call#sendCallEvent(String, Bundle)}
-     * of type {@link android.telecom.Call#EVENT_REQUEST_HANDOVER} indicating the
-     * {@link android.telecom.InCallService} has requested a handover to another
-     * {@link android.telecom.ConnectionService}.
-     *
-     * We will explicitly disallow a handover when there is an emergency call present.
-     *
-     * @param handoverFromCall The {@link Call} to be handed over.
-     * @param handoverToHandle The {@link PhoneAccountHandle} to hand over the call to.
-     * @param videoState The desired video state of {@link Call} after handover.
-     * @param initiatingExtras Extras associated with the handover, to be passed to the handover
-     *               {@link android.telecom.ConnectionService}.
-     */
-    private void requestHandoverViaEvents(Call handoverFromCall,
-                                          PhoneAccountHandle handoverToHandle,
-                                          int videoState, Bundle initiatingExtras) {
-
-        handoverFromCall.sendCallEvent(android.telecom.Call.EVENT_HANDOVER_FAILED, null);
-        Log.addEvent(handoverFromCall, LogUtils.Events.HANDOVER_REQUEST, "legacy request denied");
     }
 
     /**

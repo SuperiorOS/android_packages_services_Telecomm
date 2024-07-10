@@ -21,6 +21,7 @@ import com.android.server.telecom.TelecomSystem;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A VoipCallTransaction implementation that its sub transactions will be executed in serial
@@ -37,6 +38,7 @@ public class SerialTransaction extends VoipCallTransaction {
 
     @Override
     public void start() {
+        if (mStats != null) mStats.markStarted();
         // post timeout work
         CompletableFuture<Void> future = new CompletableFuture<>();
         mHandler.postDelayed(() -> future.complete(null), TIMEOUT_LIMIT);
@@ -47,7 +49,7 @@ public class SerialTransaction extends VoipCallTransaction {
             if (mCompleteListener != null) {
                 mCompleteListener.onTransactionTimeout(mTransactionName);
             }
-            finish();
+            timeout();
             return null;
         }, new LoggedHandlerExecutor(mHandler, mTransactionName + "@" + hashCode()
                 + ".s", mLock));
@@ -55,6 +57,7 @@ public class SerialTransaction extends VoipCallTransaction {
         if (mSubTransactions != null && mSubTransactions.size() > 0) {
             TransactionManager.TransactionCompleteListener subTransactionListener =
                     new TransactionManager.TransactionCompleteListener() {
+                        private final AtomicInteger mTransactionIndex = new AtomicInteger(0);
 
                         @Override
                         public void onTransactionCompleted(VoipCallTransactionResult result,
@@ -71,14 +74,16 @@ public class SerialTransaction extends VoipCallTransaction {
                                                                     transactionName));
                                             mCompleteListener.onTransactionCompleted(mainResult,
                                                     mTransactionName);
-                                            finish();
+                                            finish(mainResult);
                                             return null;
                                         }, new LoggedHandlerExecutor(mHandler,
                                                 mTransactionName + "@" + hashCode()
                                                         + ".oTC", mLock));
                             } else {
-                                if (mSubTransactions.size() > 0) {
-                                    VoipCallTransaction transaction = mSubTransactions.remove(0);
+                                int currTransactionIndex = mTransactionIndex.incrementAndGet();
+                                if (currTransactionIndex < mSubTransactions.size()) {
+                                    VoipCallTransaction transaction = mSubTransactions.get(
+                                            currTransactionIndex);
                                     transaction.setCompleteListener(this);
                                     transaction.start();
                                 } else {
@@ -99,14 +104,14 @@ public class SerialTransaction extends VoipCallTransaction {
                                                         transactionName));
                                         mCompleteListener.onTransactionCompleted(mainResult,
                                                 mTransactionName);
-                                        finish();
+                                        finish(mainResult);
                                         return null;
                                     }, new LoggedHandlerExecutor(mHandler,
                                             mTransactionName + "@" + hashCode()
                                                     + ".oTT", mLock));
                         }
                     };
-            VoipCallTransaction transaction = mSubTransactions.remove(0);
+            VoipCallTransaction transaction = mSubTransactions.get(0);
             transaction.setCompleteListener(subTransactionListener);
             transaction.start();
         } else {

@@ -22,11 +22,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -221,6 +221,8 @@ public class TelecomSystemTest extends TelecomTestCase{
     CallAudioCommunicationDeviceTracker mCommunicationDeviceTracker;
     @Mock
     FeatureFlags mFeatureFlags;
+    @Mock
+    com.android.internal.telephony.flags.FeatureFlags mTelephonyFlags;
 
     final ComponentName mInCallServiceComponentNameX =
             new ComponentName(
@@ -581,7 +583,8 @@ public class TelecomSystemTest extends TelecomTestCase{
                 Runnable::run,
                 Runnable::run,
                 mBlockedNumbersAdapter,
-                mFeatureFlags);
+                mFeatureFlags,
+                mTelephonyFlags);
 
         mComponentContextFixture.setTelecomManager(new TelecomManager(
                 mComponentContextFixture.getTestDouble(),

@@ -20,6 +20,7 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.ResultReceiver;
+import android.os.UserHandle;
 import android.telecom.CallEndpoint;
 import android.telecom.Log;
 import android.telecom.PhoneAccountHandle;
@@ -420,7 +421,8 @@ class InCallAdapter extends IInCallAdapter.Stub {
             Log.startSession(LogUtils.Sessions.ICA_ENTER_AUDIO_PROCESSING,
                     mOwnerPackageAbbreviation);
             // TODO: enforce the extra permission.
-            Binder.withCleanCallingIdentity(() -> {
+            long token = Binder.clearCallingIdentity();
+            try {
                 synchronized (mLock) {
                     Call call = mCallIdMapper.getCall(callId);
                     if (call != null) {
@@ -429,7 +431,9 @@ class InCallAdapter extends IInCallAdapter.Stub {
                         Log.w(this, "enterBackgroundAudioProcessing, unknown call id: %s", callId);
                     }
                 }
-            });
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
         } finally {
             Log.endSession();
         }
@@ -440,7 +444,8 @@ class InCallAdapter extends IInCallAdapter.Stub {
         try {
             Log.startSession(LogUtils.Sessions.ICA_EXIT_AUDIO_PROCESSING,
                     mOwnerPackageAbbreviation);
-            Binder.withCleanCallingIdentity(() -> {
+            long token = Binder.clearCallingIdentity();
+            try {
                 synchronized (mLock) {
                     Call call = mCallIdMapper.getCall(callId);
                     if (call != null) {
@@ -450,7 +455,9 @@ class InCallAdapter extends IInCallAdapter.Stub {
                                 "exitBackgroundAudioProcessing, unknown call id: %s", callId);
                     }
                 }
-            });
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
         } finally {
             Log.endSession();
         }

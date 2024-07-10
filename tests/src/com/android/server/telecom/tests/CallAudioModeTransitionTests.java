@@ -16,13 +16,20 @@
 
 package com.android.server.telecom.tests;
 
-import static com.android.server.telecom.CallAudioModeStateMachine.CALL_AUDIO_FOCUS_REQUEST;
-import static com.android.server.telecom.CallAudioModeStateMachine.RING_AUDIO_FOCUS_REQUEST;
 
-import android.media.AudioFocusRequest;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import android.media.AudioManager;
 import android.os.HandlerThread;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.CallAudioCommunicationDeviceTracker;
 import com.android.server.telecom.CallAudioManager;
@@ -40,16 +47,6 @@ import org.mockito.Mock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @RunWith(Parameterized.class)
 public class CallAudioModeTransitionTests extends TelecomTestCase {

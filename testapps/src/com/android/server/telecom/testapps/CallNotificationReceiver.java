@@ -82,6 +82,7 @@ public class CallNotificationReceiver extends BroadcastReceiver {
      * @param videoState The video state requested for the incoming call.
      */
     public static void sendIncomingCallIntent(Context context, Uri handle, int videoState) {
+        TelecomManager telecomManager = context.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccount = new PhoneAccountHandle(
                 new ComponentName(context, TestConnectionService.class),
                 CallServiceNotifier.SIM_SUBSCRIPTION_ID);
@@ -94,10 +95,11 @@ public class CallNotificationReceiver extends BroadcastReceiver {
             extras.putParcelable(TestConnectionService.EXTRA_HANDLE, handle);
         }
 
-        TelecomManager.from(context).addNewIncomingCall(phoneAccount, extras);
+        telecomManager.addNewIncomingCall(phoneAccount, extras);
     }
 
     public static void sendIncomingRttCallIntent(Context context, Uri handle, int videoState) {
+        TelecomManager telecomManager = context.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccount = new PhoneAccountHandle(
                 new ComponentName(context, TestConnectionService.class),
                 CallServiceNotifier.SIM_SUBSCRIPTION_ID);
@@ -111,11 +113,12 @@ public class CallNotificationReceiver extends BroadcastReceiver {
         }
         extras.putBoolean(TelecomManager.EXTRA_START_CALL_WITH_RTT, true);
 
-        TelecomManager.from(context).addNewIncomingCall(phoneAccount, extras);
+        telecomManager.addNewIncomingCall(phoneAccount, extras);
     }
 
     public static void addNewUnknownCall(Context context, Uri handle, Bundle extras) {
         Log.i(TAG, "Adding new unknown call with handle " + handle);
+        TelecomManager telecomManager = context.getSystemService(TelecomManager.class);
         PhoneAccountHandle phoneAccount = new PhoneAccountHandle(
                 new ComponentName(context, TestConnectionService.class),
                 CallServiceNotifier.SIM_SUBSCRIPTION_ID);
@@ -129,7 +132,7 @@ public class CallNotificationReceiver extends BroadcastReceiver {
             extras.putParcelable(TestConnectionService.EXTRA_HANDLE, handle);
         }
 
-        TelecomManager.from(context).addNewUnknownCall(phoneAccount, extras);
+        telecomManager.addNewUnknownCall(phoneAccount, extras);
     }
 
     public static void hangupCalls(Context context) {

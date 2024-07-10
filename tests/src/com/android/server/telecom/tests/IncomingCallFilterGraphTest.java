@@ -16,11 +16,16 @@
 
 package com.android.server.telecom.tests;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.when;
+
 import android.content.ContentResolver;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.TelecomSystem;
@@ -30,15 +35,11 @@ import com.android.server.telecom.callfiltering.CallFilterResultCallback;
 import com.android.server.telecom.callfiltering.CallFilteringResult;
 import com.android.server.telecom.callfiltering.IncomingCallFilterGraph;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.when;
-
 import org.junit.Before;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.Mock;
-import org.junit.Test;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;

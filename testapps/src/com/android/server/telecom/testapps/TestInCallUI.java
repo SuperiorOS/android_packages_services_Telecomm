@@ -40,6 +40,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.server.telecom.flags.Flags;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -263,6 +265,8 @@ public class TestInCallUI extends Activity {
                         .getIntentExtras().getString(TelecomManager.EXTRA_CALL_SUBJECT);
                 boolean isBusiness = call.getDetails()
                         .getExtras().getBoolean(ImsCallProfile.EXTRA_IS_BUSINESS_CALL);
+                String businessName = call.getDetails()
+                            .getExtras().getString(ImsCallProfile.EXTRA_ASSERTED_DISPLAY_NAME);
 
                 StringBuilder display = new StringBuilder();
                 display.append("priority=");
@@ -286,6 +290,7 @@ public class TestInCallUI extends Activity {
 
                 display.append(" subject=" + subject);
                 display.append(" isBusiness=" + isBusiness);
+                display.append(" businessName=" + businessName);
                 TextView attachmentsTextView = findViewById(R.id.incoming_composer_attachments);
                 attachmentsTextView.setText(display.toString());
                 break;

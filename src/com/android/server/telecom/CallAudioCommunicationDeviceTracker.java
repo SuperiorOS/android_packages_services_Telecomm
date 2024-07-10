@@ -16,6 +16,8 @@
 
 package com.android.server.telecom;
 
+import static com.android.server.telecom.AudioRoute.BT_AUDIO_DEVICE_INFO_TYPES;
+
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.media.AudioDeviceInfo;
@@ -28,7 +30,6 @@ import com.android.server.telecom.flags.Flags;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -41,12 +42,6 @@ public class CallAudioCommunicationDeviceTracker {
 
     // Use -1 indicates device is not set for any communication use case
     private static final int sAUDIO_DEVICE_TYPE_INVALID = -1;
-    // Possible bluetooth audio device types
-    private static final Set<Integer> sBT_AUDIO_DEVICE_TYPES = Set.of(
-            AudioDeviceInfo.TYPE_BLE_HEADSET,
-            AudioDeviceInfo.TYPE_HEARING_AID,
-            AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-    );
     private AudioManager mAudioManager;
     private BluetoothRouteManager mBluetoothRouteManager;
     private int mAudioDeviceType = sAUDIO_DEVICE_TYPE_INVALID;
@@ -101,7 +96,7 @@ public class CallAudioCommunicationDeviceTracker {
             mLock.tryAcquire();
         }
         // There is only one audio device type associated with each type of BT device.
-        boolean isBtDevice = sBT_AUDIO_DEVICE_TYPES.contains(audioDeviceType);
+        boolean isBtDevice = BT_AUDIO_DEVICE_INFO_TYPES.contains(audioDeviceType);
         Log.i(this, "setCommunicationDevice: type = %s, isBtDevice = %s, btDevice = %s",
                 audioDeviceType, isBtDevice, btDevice);
 
@@ -182,7 +177,7 @@ public class CallAudioCommunicationDeviceTracker {
             mLock.tryAcquire();
         }
         // There is only one audio device type associated with each type of BT device.
-        boolean isBtDevice = sBT_AUDIO_DEVICE_TYPES.contains(audioDeviceType);
+        boolean isBtDevice = BT_AUDIO_DEVICE_INFO_TYPES.contains(audioDeviceType);
         Log.i(this, "clearCommunicationDevice: type = %s, isBtDevice = %s",
                 audioDeviceType, isBtDevice);
 

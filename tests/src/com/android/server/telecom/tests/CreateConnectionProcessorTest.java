@@ -16,10 +16,21 @@
 
 package com.android.server.telecom.tests;
 
-import android.Manifest;
+import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Binder;
@@ -28,7 +39,8 @@ import android.telecom.DisconnectCause;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telephony.SubscriptionManager;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallIdMapper;
@@ -45,7 +57,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
@@ -56,20 +67,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
-
-import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit testing for CreateConnectionProcessor as well as CreateConnectionTimeout classes.
@@ -841,9 +838,10 @@ public class CreateConnectionProcessorTest extends TelecomTestCase {
 
     private ConnectionServiceWrapper makeConnectionServiceWrapper() {
         ConnectionServiceWrapper wrapper = mock(ConnectionServiceWrapper.class);
+
         when(mMockConnectionServiceRepository.getService(
-                eq(makeQuickConnectionServiceComponentName()),
-                any(UserHandle.class), any(FeatureFlags.class))).thenReturn(wrapper);
+                eq(makeQuickConnectionServiceComponentName()), any(UserHandle.class)))
+                .thenReturn(wrapper);
         return wrapper;
     }
 

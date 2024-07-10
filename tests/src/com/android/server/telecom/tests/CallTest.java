@@ -51,10 +51,10 @@ import android.telecom.StatusHints;
 import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
 import android.telephony.CallQuality;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.widget.Toast;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallIdMapper;

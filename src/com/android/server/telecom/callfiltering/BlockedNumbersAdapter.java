@@ -20,7 +20,7 @@ import android.content.Context;
 
 /**
  * Adapter interface that wraps methods from
- * {@link android.provider.BlockedNumberContract.SystemContract} and
+ * {@link android.provider.BlockedNumberContract.BlockedNumbers} and
  * {@link com.android.server.telecom.settings.BlockedNumbersUtil} to make things testable.
  */
 public interface BlockedNumbersAdapter {

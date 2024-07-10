@@ -41,6 +41,7 @@ public class RoleManagerAdapterImpl implements RoleManagerAdapter {
     private String mOverrideDefaultCallScreeningApp = null;
     private String mOverrideDefaultDialerApp = null;
     private List<String> mOverrideCallCompanionApps = new ArrayList<>();
+    private String mOverrideBTInCallService = null;
     private Context mContext;
     private RoleManager mRoleManager;
     private UserHandle mCurrentUserHandle;
@@ -75,6 +76,20 @@ public class RoleManagerAdapterImpl implements RoleManagerAdapter {
     public void setTestDefaultCallScreeningApp(String packageName) {
         mOverrideDefaultCallScreeningApp = packageName;
     }
+
+    @Override
+    public String getBTInCallService() {
+        if (mOverrideBTInCallService != null) {
+            return mOverrideBTInCallService;
+        }
+        return getBluetoothInCallServicePackageName();
+    }
+
+    @Override
+    public void setTestBTInCallService(String packageName) {
+        mOverrideBTInCallService = packageName;
+    }
+
 
     @Override
     public String getDefaultDialerApp(int user) {
@@ -149,6 +164,10 @@ public class RoleManagerAdapterImpl implements RoleManagerAdapter {
             return null;
         }
         return roleHolders.get(0);
+    }
+
+    private String getBluetoothInCallServicePackageName() {
+        return mContext.getResources().getString(R.string.system_bluetooth_stack);
     }
 
     /**

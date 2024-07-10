@@ -72,7 +72,8 @@ public class EnableAccountPreferenceFragment extends PreferenceFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mTelecomManager = TelecomManager.from(getActivity());
+        Context context = getActivity();
+        mTelecomManager = context.getSystemService(TelecomManager.class);
     }
 
 

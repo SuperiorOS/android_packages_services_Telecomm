@@ -26,11 +26,11 @@ import static org.mockito.Mockito.when;
 import android.net.Uri;
 import android.provider.CallLog;
 import android.telecom.CallerInfo;
-import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallerInfoLookupHelper;
-import com.android.server.telecom.callfiltering.CallFilter;
 import com.android.server.telecom.callfiltering.CallFilteringResult;
 import com.android.server.telecom.callfiltering.DirectToVoicemailFilter;
 
@@ -43,7 +43,6 @@ import org.mockito.Mock;
 
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
-
 
 @RunWith(JUnit4.class)
 public class DirectToVoicemailFilterTest extends TelecomTestCase {

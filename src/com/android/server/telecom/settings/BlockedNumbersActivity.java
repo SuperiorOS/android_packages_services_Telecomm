@@ -155,7 +155,7 @@ public class BlockedNumbersActivity extends ListActivity
             }
         };
         IntentFilter blockStatusIntentFilter = new IntentFilter(
-                BlockedNumberContract.SystemContract.ACTION_BLOCK_SUPPRESSION_STATE_CHANGED);
+                BlockedNumberContract.BlockedNumbers.ACTION_BLOCK_SUPPRESSION_STATE_CHANGED);
         blockStatusIntentFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
         registerReceiver(mBlockingStatusReceiver, blockStatusIntentFilter,
                 Context.RECEIVER_EXPORTED);
@@ -183,7 +183,8 @@ public class BlockedNumbersActivity extends ListActivity
     }
 
     private void updateButterBar() {
-        if (BlockedNumberContract.SystemContract.getBlockSuppressionStatus(this).isSuppressed) {
+        if (BlockedNumberContract.BlockedNumbers
+                .getBlockSuppressionStatus(this).getIsSuppressed()) {
             mButterBar.setVisibility(View.VISIBLE);
         } else {
             mButterBar.setVisibility(View.GONE);
@@ -238,7 +239,7 @@ public class BlockedNumbersActivity extends ListActivity
         if (view == mAddButton) {
             showAddBlockedNumberDialog();
         } else if (view == mReEnableButton) {
-            BlockedNumberContract.SystemContract.endBlockSuppression(this);
+            BlockedNumberContract.BlockedNumbers.endBlockSuppression(this);
             mButterBar.setVisibility(View.GONE);
         }
     }

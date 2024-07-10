@@ -19,6 +19,8 @@ package com.android.server.telecom;
 import static android.provider.CallLog.Calls.MISSED_REASON_NOT_MISSED;
 import static android.telephony.TelephonyManager.EVENT_DISPLAY_EMERGENCY_MESSAGE;
 
+import static com.android.server.telecom.voip.VideoStateTranslation.VideoProfileStateToTransactionalVideoState;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
@@ -27,13 +29,11 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.OutcomeReceiver;
 import android.os.ParcelFileDescriptor;
-import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.Trace;
@@ -58,7 +58,6 @@ import android.telecom.ParcelableConference;
 import android.telecom.ParcelableConnection;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
-import android.telecom.Response;
 import android.telecom.StatusHints;
 import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
@@ -74,7 +73,6 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telecom.IVideoProvider;
 import com.android.internal.util.Preconditions;
 import com.android.server.telecom.flags.FeatureFlags;
-import com.android.server.telecom.flags.Flags;
 import com.android.server.telecom.stats.CallFailureCause;
 import com.android.server.telecom.stats.CallStateChangedAtomWriter;
 import com.android.server.telecom.ui.ToastFactory;
@@ -96,6 +94,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -655,6 +654,36 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
     private boolean mIsVideoCallingSupportedByPhoneAccount = false;
 
     /**
+     * Indicates whether this individual calls video state can be changed as opposed to be gated
+     * by the {@link PhoneAccount}.
+     *
+     * {@code True} if the call is Transactional && has the CallAttributes.SUPPORTS_VIDEO_CALLING
+     * capability {@code false} otherwise.
+     */
+    private boolean mTransactionalCallSupportsVideoCalling = false;
+
+    public void setTransactionalCallSupportsVideoCalling(CallAttributes callAttributes) {
+        if (!mIsTransactionalCall) {
+            Log.i(this, "setTransactionalCallSupportsVideoCalling: call is not transactional");
+            return;
+        }
+        if (callAttributes == null) {
+            Log.i(this, "setTransactionalCallSupportsVideoCalling: callAttributes is null");
+            return;
+        }
+        if ((callAttributes.getCallCapabilities() & CallAttributes.SUPPORTS_VIDEO_CALLING)
+                == CallAttributes.SUPPORTS_VIDEO_CALLING) {
+            mTransactionalCallSupportsVideoCalling = true;
+        } else {
+            mTransactionalCallSupportsVideoCalling = false;
+        }
+    }
+
+    public boolean isTransactionalCallSupportsVideoCalling() {
+        return mTransactionalCallSupportsVideoCalling;
+    }
+
+    /**
      * Indicates whether or not this call can be pulled if it is an external call. If true, respect
      * the Connection Capability set by the ConnectionService. If false, override the capability
      * set and always remove the ability to pull this external call.
@@ -796,6 +825,13 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
      * {@link CallDiagnostics#onCallDisconnected(int, int)}.
      */
     private CompletableFuture<Boolean> mDisconnectFuture;
+
+    /**
+     * {@link CompletableFuture} used to delay audio routing change for a ringing call until the
+     * corresponding bluetooth {@link android.telecom.InCallService} is successfully bound or timed
+     * out.
+     */
+    private CompletableFuture<Boolean> mBtIcsFuture;
 
     private FeatureFlags mFlags;
 
@@ -3172,8 +3208,7 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
             } else if (mConnectionService != null) {
                 mConnectionService.onExtrasChanged(this, mExtras);
             } else {
-                Log.e(this, new NullPointerException(),
-                        "putExtras failed due to null CS callId=%s", getId());
+                Log.w(this, "putExtras failed due to null CS callId=%s", getId());
             }
         }
     }
@@ -3427,62 +3462,16 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
      */
     public void sendCallEvent(String event, int targetSdkVer, Bundle extras) {
         if (mConnectionService != null || mTransactionalService != null) {
-            if (android.telecom.Call.EVENT_REQUEST_HANDOVER.equals(event)) {
-                if (targetSdkVer > Build.VERSION_CODES.P) {
-                    Log.e(this, new Exception(), "sendCallEvent failed. Use public api handoverTo" +
-                            " for API > 28(P)");
-                    // Event-based Handover APIs are deprecated, so inform the user.
-                    mHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            mToastFactory.makeText(mContext,
-                                    "WARNING: Event-based handover APIs are deprecated and will no"
-                                            + " longer function in Android Q.",
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    });
-
-                    // Uncomment and remove toast at feature complete: return;
-                }
-
-                // Handover requests are targeted at Telecom, not the ConnectionService.
-                if (extras == null) {
-                    Log.w(this, "sendCallEvent: %s event received with null extras.",
-                            android.telecom.Call.EVENT_REQUEST_HANDOVER);
-                    sendEventToService(this, android.telecom.Call.EVENT_HANDOVER_FAILED,
-                            null);
-                    return;
-                }
-                Parcelable parcelable = extras.getParcelable(
-                        android.telecom.Call.EXTRA_HANDOVER_PHONE_ACCOUNT_HANDLE);
-                if (!(parcelable instanceof PhoneAccountHandle) || parcelable == null) {
-                    Log.w(this, "sendCallEvent: %s event received with invalid handover acct.",
-                            android.telecom.Call.EVENT_REQUEST_HANDOVER);
-                    sendEventToService(this, android.telecom.Call.EVENT_HANDOVER_FAILED, null);
-                    return;
-                }
-                PhoneAccountHandle phoneAccountHandle = (PhoneAccountHandle) parcelable;
-                int videoState = extras.getInt(android.telecom.Call.EXTRA_HANDOVER_VIDEO_STATE,
-                        VideoProfile.STATE_AUDIO_ONLY);
-                Parcelable handoverExtras = extras.getParcelable(
-                        android.telecom.Call.EXTRA_HANDOVER_EXTRAS);
-                Bundle handoverExtrasBundle = null;
-                if (handoverExtras instanceof Bundle) {
-                    handoverExtrasBundle = (Bundle) handoverExtras;
-                }
-                requestHandover(phoneAccountHandle, videoState, handoverExtrasBundle, true);
-            } else {
-                // Relay bluetooth call quality reports to the call diagnostic service.
-                if (BluetoothCallQualityReport.EVENT_BLUETOOTH_CALL_QUALITY_REPORT.equals(event)
-                        && extras.containsKey(
-                        BluetoothCallQualityReport.EXTRA_BLUETOOTH_CALL_QUALITY_REPORT)) {
-                    notifyBluetoothCallQualityReport(extras.getParcelable(
-                            BluetoothCallQualityReport.EXTRA_BLUETOOTH_CALL_QUALITY_REPORT
-                    ));
-                }
-                Log.addEvent(this, LogUtils.Events.CALL_EVENT, event);
-                sendEventToService(this, event, extras);
+            // Relay bluetooth call quality reports to the call diagnostic service.
+            if (BluetoothCallQualityReport.EVENT_BLUETOOTH_CALL_QUALITY_REPORT.equals(event)
+                    && extras.containsKey(
+                    BluetoothCallQualityReport.EXTRA_BLUETOOTH_CALL_QUALITY_REPORT)) {
+                notifyBluetoothCallQualityReport(extras.getParcelable(
+                        BluetoothCallQualityReport.EXTRA_BLUETOOTH_CALL_QUALITY_REPORT
+                ));
             }
+            Log.addEvent(this, LogUtils.Events.CALL_EVENT, event);
+            sendEventToService(this, event, extras);
         } else {
             Log.e(this, new NullPointerException(),
                     "sendCallEvent failed due to null CS callId=%s", getId());
@@ -3824,7 +3813,7 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
             Log.d(this, "maybeLoadCannedSmsResponses: starting task to load messages");
             mCannedSmsResponsesLoadingStarted = true;
             mCallsManager.getRespondViaSmsManager().loadCannedTextMessages(
-                    new Response<Void, List<String>>() {
+                    new CallsManager.Response<Void, List<String>>() {
                         @Override
                         public void onResult(Void request, List<String>... result) {
                             if (result.length > 0) {
@@ -4065,6 +4054,15 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
             videoState = VideoProfile.STATE_AUDIO_ONLY;
         }
 
+        // Transactional calls have the ability to change video calling capabilities on a per-call
+        // basis as opposed to ConnectionService calls which are only based on the PhoneAccount.
+        if (mFlags.transactionalVideoState()
+                && mIsTransactionalCall && !mTransactionalCallSupportsVideoCalling) {
+            Log.i(this, "setVideoState: The transactional does NOT support video calling."
+                    + " defaulted to audio (video not supported)");
+            videoState = VideoProfile.STATE_AUDIO_ONLY;
+        }
+
         // Track Video State history during the duration of the call.
         // Only update the history when the call is active or disconnected. This ensures we do
         // not include the video state history when:
@@ -4085,6 +4083,12 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
             for (Listener l : mListeners) {
                 l.onVideoStateChanged(this, previousVideoState, mVideoState);
             }
+        }
+
+        if (mFlags.transactionalVideoState()
+                && mIsTransactionalCall && mTransactionalService != null) {
+            int transactionalVS = VideoProfileStateToTransactionalVideoState(mVideoState);
+            mTransactionalService.onVideoStateChanged(this, transactionalVS);
         }
 
         if (VideoProfile.isVideo(videoState)) {
@@ -4736,6 +4740,30 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
         if (mDisconnectFuture != null) {
             mDisconnectFuture.complete(false);
             mDisconnectFuture = null;
+        }
+    }
+
+    /**
+     * Set the bluetooth {@link android.telecom.InCallService} binding completion or timeout future
+     * which is used to delay the audio routing change after the bluetooth stack get notified about
+     * the ringing calls.
+     * @param btIcsFuture the {@link CompletableFuture}
+     */
+    public void setBtIcsFuture(CompletableFuture<Boolean> btIcsFuture) {
+        mBtIcsFuture = btIcsFuture;
+    }
+
+    /**
+     * Wait for bluetooth {@link android.telecom.InCallService} binding completion or timeout. Used
+     * for audio routing operations for a ringing call.
+     */
+    public void waitForBtIcs() {
+        if (mBtIcsFuture != null) {
+            try {
+                mBtIcsFuture.get();
+            } catch (InterruptedException | ExecutionException e) {
+                // ignore
+            }
         }
     }
 

@@ -24,7 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.test.suitebuilder.annotation.SmallTest;
+import androidx.test.filters.SmallTest;
 
 import com.android.server.telecom.AsyncRingtonePlayer;
 import com.android.server.telecom.CallAudioRoutePeripheralAdapter;

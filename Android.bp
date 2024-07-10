@@ -1,28 +1,22 @@
 package {
+    default_team: "trendy_team_fwk_telecom",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 genrule {
     name: "statslog-telecom-java-gen",
     tools: ["stats-log-api-gen"],
-    cmd: "$(location stats-log-api-gen) --java $(out) --module telecom"
-        + " --javaPackage com.android.server.telecom --javaClass TelecomStatsLog",
+    cmd: "$(location stats-log-api-gen) --java $(out) --module telecom" +
+        " --javaPackage com.android.server.telecom --javaClass TelecomStatsLog",
     out: ["com/android/server/telecom/TelecomStatsLog.java"],
 }
 
-filegroup {
-    name: "Telecom-srcs",
+android_library {
+    name: "TelecomLib",
+    manifest: "AndroidManifestLib.xml",
     srcs: [
         "src/**/*.java",
         ":statslog-telecom-java-gen",
-    ],
-}
-
-// Build the Telecom service.
-android_app {
-    name: "Telecom",
-    srcs: [
-        ":Telecom-srcs",
         "proto/**/*.proto",
     ],
     static_libs: [
@@ -30,15 +24,28 @@ android_app {
         "androidx.core_core",
         "telecom_flags_core_java_lib",
     ],
-    libs: [
-        "services",
-    ],
     resource_dirs: ["res"],
     proto: {
         type: "nano",
         local_include_dirs: ["proto/"],
         output_params: ["optional_field_style=accessors"],
     },
+    platform_apis: true,
+}
+
+
+// Build the Telecom service.
+android_app {
+    name: "Telecom",
+    srcs: [
+    ],
+    static_libs: [
+        "TelecomLib",
+    ],
+    libs: [
+        "services",
+    ],
+    resource_dirs: [],
     platform_apis: true,
     certificate: "platform",
     privileged: true,
@@ -50,6 +57,7 @@ android_app {
 android_test {
     name: "TelecomUnitTests",
     static_libs: [
+        "TelecomLib",
         "android-ex-camera2",
         "flag-junit",
         "guava",
@@ -58,25 +66,15 @@ android_test {
         "platform-test-annotations",
         "androidx.legacy_legacy-support-core-ui",
         "androidx.legacy_legacy-support-core-utils",
-        "androidx.core_core",
         "androidx.fragment_fragment",
         "androidx.test.ext.junit",
         "platform-compat-test-rules",
-        "telecom_flags_core_java_lib",
     ],
     srcs: [
         "tests/src/**/*.java",
-        ":Telecom-srcs",
-        "proto/**/*.proto",
     ],
-    proto: {
-        type: "nano",
-        local_include_dirs: ["proto/"],
-        output_params: ["optional_field_style=accessors"],
-    },
     resource_dirs: [
         "tests/res",
-        "res",
     ],
     libs: [
         "android.test.mock",
@@ -89,11 +87,6 @@ android_test {
         "libstaticjvmtiagent",
     ],
 
-    aaptflags: [
-        "--auto-add-overlay",
-        "--extra-packages",
-        "com.android.server.telecom",
-    ],
     manifest: "tests/AndroidManifest.xml",
     optimize: {
         enabled: false,

@@ -58,9 +58,9 @@ public class CallBlockDisabledActivity extends Activity {
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        BlockedNumbersUtil.setEnhancedBlockSetting(
+                        BlockedNumbersUtil.setBlockedNumberSetting(
                                 CallBlockDisabledActivity.this,
-                                BlockedNumberContract.SystemContract
+                                BlockedNumberContract.BlockedNumbers
                                         .ENHANCED_SETTING_KEY_SHOW_EMERGENCY_CALL_NOTIFICATION,
                                 false);
                         BlockedNumbersUtil.updateEmergencyCallNotification(

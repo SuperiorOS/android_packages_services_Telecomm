@@ -244,7 +244,7 @@ public class CreateConnectionProcessor implements CreateConnectionResponse {
             Log.i(this, "Trying attempt %s", attempt);
             PhoneAccountHandle phoneAccount = attempt.connectionManagerPhoneAccount;
             mService = mRepository.getService(phoneAccount.getComponentName(),
-                    phoneAccount.getUserHandle(), mFlags);
+                    phoneAccount.getUserHandle());
             if (mService == null) {
                 Log.i(this, "Found no connection service for attempt %s", attempt);
                 attemptNextPhoneAccount();
@@ -260,7 +260,7 @@ public class CreateConnectionProcessor implements CreateConnectionResponse {
                         PhoneAccountHandle remotePhoneAccount = attempt.targetPhoneAccount;
                         ConnectionServiceWrapper mRemoteService =
                                 mRepository.getService(remotePhoneAccount.getComponentName(),
-                                remotePhoneAccount.getUserHandle(), mFlags);
+                                remotePhoneAccount.getUserHandle());
                         if (mRemoteService == null) {
                             mCall.setConnectionService(mService);
                         } else {
