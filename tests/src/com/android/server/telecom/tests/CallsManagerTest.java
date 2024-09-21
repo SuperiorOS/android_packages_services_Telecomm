@@ -57,6 +57,7 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.OutcomeReceiver;
 import android.os.Process;
@@ -85,6 +86,7 @@ import android.widget.Toast;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
+import com.android.internal.telecom.IConnectionService;
 import com.android.server.telecom.AnomalyReporterAdapter;
 import com.android.server.telecom.AsyncRingtonePlayer;
 import com.android.server.telecom.Call;
@@ -103,6 +105,7 @@ import com.android.server.telecom.ClockProxy;
 import com.android.server.telecom.ConnectionServiceFocusManager;
 import com.android.server.telecom.ConnectionServiceFocusManager.ConnectionServiceFocusManagerFactory;
 import com.android.server.telecom.ConnectionServiceWrapper;
+import com.android.server.telecom.CreateConnectionResponse;
 import com.android.server.telecom.DefaultDialerCache;
 import com.android.server.telecom.EmergencyCallDiagnosticLogger;
 import com.android.server.telecom.EmergencyCallHelper;
@@ -312,6 +315,9 @@ public class CallsManagerTest extends TelecomTestCase {
     @Mock private FeatureFlags mFeatureFlags;
     @Mock private com.android.internal.telephony.flags.FeatureFlags mTelephonyFlags;
     @Mock private IncomingCallFilterGraph mIncomingCallFilterGraph;
+    @Mock private Context mMockCreateContextAsUser;
+    @Mock private UserManager mMockCurrentUserManager;
+    @Mock private IConnectionService mIConnectionService;
     private CallsManager mCallsManager;
 
     @Override
@@ -406,11 +412,22 @@ public class CallsManagerTest extends TelecomTestCase {
         when(mToastFactory.makeText(any(), anyInt(), anyInt())).thenReturn(mToast);
         when(mToastFactory.makeText(any(), any(), anyInt())).thenReturn(mToast);
         when(mFeatureFlags.separatelyBindToBtIncallService()).thenReturn(false);
+        when(mFeatureFlags.telecomResolveHiddenDependencies()).thenReturn(true);
+        when(mContext.createContextAsUser(any(UserHandle.class), eq(0)))
+                .thenReturn(mMockCreateContextAsUser);
+        when(mMockCreateContextAsUser.getSystemService(UserManager.class))
+                .thenReturn(mMockCurrentUserManager);
+        when(mIConnectionService.asBinder()).thenReturn(mock(IBinder.class));
+
+        mComponentContextFixture.addConnectionService(
+                SIM_1_ACCOUNT.getAccountHandle().getComponentName(), mIConnectionService);
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
+        mComponentContextFixture.removeConnectionService(
+                SIM_1_ACCOUNT.getAccountHandle().getComponentName(), mIConnectionService);
         super.tearDown();
     }
 
@@ -2824,9 +2841,9 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.addConnectionServiceRepositoryCache(WORK_HANDLE.getComponentName(),
                 WORK_HANDLE.getUserHandle(), service);
 
-        UserManager um = mContext.getSystemService(UserManager.class);
-        when(um.isUserAdmin(anyInt())).thenReturn(false);
-        when(um.isQuietModeEnabled(eq(WORK_HANDLE.getUserHandle()))).thenReturn(false);
+        when(mMockCurrentUserManager.isAdminUser()).thenReturn(false);
+        when(mMockCurrentUserManager.isQuietModeEnabled(eq(WORK_HANDLE.getUserHandle())))
+                .thenReturn(false);
         when(mPhoneAccountRegistrar.getPhoneAccountUnchecked(eq(WORK_HANDLE)))
                 .thenReturn(WORK_ACCOUNT);
         Call newCall = mCallsManager.processIncomingCallIntent(
@@ -2845,9 +2862,9 @@ public class CallsManagerTest extends TelecomTestCase {
         mCallsManager.addConnectionServiceRepositoryCache(WORK_HANDLE.getComponentName(),
                 WORK_HANDLE.getUserHandle(), service);
 
-        UserManager um = mContext.getSystemService(UserManager.class);
-        when(um.isUserAdmin(anyInt())).thenReturn(true);
-        when(um.isQuietModeEnabled(eq(WORK_HANDLE.getUserHandle()))).thenReturn(true);
+        when(mMockCurrentUserManager.isAdminUser()).thenReturn(true);
+        when(mMockCurrentUserManager.isQuietModeEnabled(any(UserHandle.class)))
+                .thenReturn(true);
         when(mPhoneAccountRegistrar.getPhoneAccountUnchecked(eq(WORK_HANDLE)))
                 .thenReturn(WORK_ACCOUNT);
         Call newCall = mCallsManager.processIncomingCallIntent(
@@ -2868,8 +2885,8 @@ public class CallsManagerTest extends TelecomTestCase {
 
         when(mEmergencyCallHelper.isLastOutgoingEmergencyCallPAH(eq(SIM_2_HANDLE)))
                 .thenReturn(true);
-        UserManager um = mContext.getSystemService(UserManager.class);
-        when(um.isQuietModeEnabled(eq(SIM_2_HANDLE.getUserHandle()))).thenReturn(true);
+        when(mMockCurrentUserManager.isQuietModeEnabled(eq(SIM_2_HANDLE.getUserHandle())))
+                .thenReturn(true);
         Call newCall = mCallsManager.processIncomingCallIntent(
                 SIM_2_HANDLE, new Bundle(), false);
 
@@ -2887,9 +2904,9 @@ public class CallsManagerTest extends TelecomTestCase {
 
         when(mEmergencyCallHelper.isLastOutgoingEmergencyCallPAH(eq(WORK_HANDLE)))
                 .thenReturn(true);
-        UserManager um = mContext.getSystemService(UserManager.class);
-        when(um.isUserAdmin(anyInt())).thenReturn(false);
-        when(um.isQuietModeEnabled(eq(WORK_HANDLE.getUserHandle()))).thenReturn(false);
+        when(mMockCurrentUserManager.isAdminUser()).thenReturn(false);
+        when(mMockCurrentUserManager.isQuietModeEnabled(eq(WORK_HANDLE.getUserHandle())))
+                .thenReturn(false);
         when(mPhoneAccountRegistrar.getPhoneAccountUnchecked(eq(WORK_HANDLE)))
                 .thenReturn(WORK_ACCOUNT);
         Call newCall = mCallsManager.processIncomingCallIntent(
@@ -2910,8 +2927,8 @@ public class CallsManagerTest extends TelecomTestCase {
         Bundle extras = new Bundle();
         extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, TEST_ADDRESS);
         TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
-        UserManager um = mContext.getSystemService(UserManager.class);
-        when(um.isQuietModeEnabled(eq(SIM_2_HANDLE.getUserHandle()))).thenReturn(true);
+        when(mMockCurrentUserManager.isQuietModeEnabled(eq(SIM_2_HANDLE.getUserHandle())))
+                .thenReturn(true);
         when(tm.isEmergencyNumber(any(String.class))).thenReturn(true);
         Call newCall = mCallsManager.processIncomingCallIntent(
                 SIM_2_HANDLE, extras, false);
@@ -3071,6 +3088,35 @@ public class CallsManagerTest extends TelecomTestCase {
 
         String result = resultFuture.get(1000L, TimeUnit.MILLISECONDS);
         assertTrue(result.contains("onReceiveResult"));
+    }
+
+    @Test
+    public void testConnectionServiceCreateConnectionTimeout() throws Exception {
+        ConnectionServiceWrapper service = new ConnectionServiceWrapper(
+                SIM_1_ACCOUNT.getAccountHandle().getComponentName(), null,
+                mPhoneAccountRegistrar, mCallsManager, mContext, mLock, null, mFeatureFlags);
+        TestScheduledExecutorService scheduledExecutorService = new TestScheduledExecutorService();
+        service.setScheduledExecutorService(scheduledExecutorService);
+        Call call = addSpyCall();
+        service.addCall(call);
+        when(call.isCreateConnectionComplete()).thenReturn(false);
+        CreateConnectionResponse response = mock(CreateConnectionResponse.class);
+
+        service.createConnection(call, response);
+        waitUntilConditionIsTrueOrTimeout(new Condition() {
+            @Override
+            public Object expected() {
+                return true;
+            }
+
+            @Override
+            public Object actual() {
+                return scheduledExecutorService.isRunnableScheduledAtTime(15000L);
+            }
+        }, 5000L, "Expected job failed to schedule");
+        scheduledExecutorService.advanceTime(15000L);
+        verify(response).handleCreateConnectionFailure(
+                eq(new DisconnectCause(DisconnectCause.ERROR)));
     }
 
     @SmallTest
@@ -3463,9 +3509,7 @@ public class CallsManagerTest extends TelecomTestCase {
         // WHEN
         when(mPhoneAccountRegistrar.getPhoneAccountUnchecked(any()))
                 .thenReturn(SM_W_DIFFERENT_PACKAGE_AND_USER);
-        UserManager um = mContext.getSystemService(UserManager.class);
-        when(um.isUserAdmin(eq(mCallsManager.getCurrentUserHandle().getIdentifier())))
-                .thenReturn(true);
+        when(mMockCurrentUserManager.isAdminUser()).thenReturn(true);
 
         // THEN
         mCallsManager.processIncomingCallIntent(SELF_MANAGED_W_CUSTOM_HANDLE, new Bundle(), false);
@@ -3730,5 +3774,20 @@ public class CallsManagerTest extends TelecomTestCase {
         TelephonyManager mockTelephonyManager = mComponentContextFixture.getTelephonyManager();
         when(mockTelephonyManager.getPhoneCapability()).thenReturn(mPhoneCapability);
         when(mPhoneCapability.getMaxActiveVoiceSubscriptions()).thenReturn(num);
+    }
+
+    private void waitUntilConditionIsTrueOrTimeout(Condition condition, long timeout,
+            String description) throws InterruptedException {
+        final long start = System.currentTimeMillis();
+        while (!condition.expected().equals(condition.actual())
+                && System.currentTimeMillis() - start < timeout) {
+            sleep(50);
+        }
+        assertEquals(description, condition.expected(), condition.actual());
+    }
+
+    protected interface Condition {
+        Object expected();
+        Object actual();
     }
 }
